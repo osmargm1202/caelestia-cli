@@ -152,6 +152,7 @@ subcommands:
     shell        start or message the shell
     toggle       toggle a special workspace
     scheme       manage the colour scheme
+    search       search using a screen region
     screenshot   take a screenshot
     record       start a screen recording
     clipboard    open clipboard history

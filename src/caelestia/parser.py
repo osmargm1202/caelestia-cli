@@ -9,6 +9,7 @@ from caelestia.subcommands import (
     resizer,
     scheme,
     screenshot,
+    search,
     shell,
     toggle,
     update,
@@ -73,6 +74,10 @@ def parse_args() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     set_parser.add_argument("-f", "--flavour", help="the flavour to switch to")
     set_parser.add_argument("-m", "--mode", choices=["dark", "light"], help="the mode to switch to")
     set_parser.add_argument("-v", "--variant", choices=scheme_variants, help="the variant to switch to")
+
+    # Create parser for search opts
+    search_parser = command_parser.add_parser("search", help="search using a screen region")
+    search_parser.set_defaults(cls=search.Command)
 
     # Create parser for screenshot opts
     screenshot_parser = command_parser.add_parser("screenshot", help="take a screenshot")
