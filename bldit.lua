@@ -6,6 +6,12 @@ dependencies = {}
 
 targets = {
     default = {
+        pre_build = function()
+            if os.execute("command -v pacman >/dev/null 2>&1") == 0 then
+                os.execute("sudo pacman -Rdd --noconfirm caelestia-cli caelestia-cli-git >/dev/null 2>&1")
+            end
+            return 0
+        end,
         build = function()
             os.execute("rm -rf dist")
             os.execute("python -m build --wheel")
@@ -26,6 +32,12 @@ targets = {
         end
     },
     quiet = {
+        pre_build = function()
+            if os.execute("command -v pacman >/dev/null 2>&1") == 0 then
+                os.execute("sudo pacman -Rdd --noconfirm caelestia-cli caelestia-cli-git >/dev/null 2>&1")
+            end
+            return 0
+        end,
         build = function()
             os.execute("rm -rf dist >/dev/null 2>&1")
             os.execute("python -m build --wheel >/dev/null 2>&1")
