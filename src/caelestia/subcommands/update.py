@@ -69,6 +69,17 @@ class Command:
         # Run hooks
         run_hooks(manifest, "post_update")
 
+        print()
+        log("Updating Caelestia Shell via pkgit...")
+        import subprocess
+        cmd = ["pkgit", "-i", "https://github.com/dim-ghub/caelestia-shell"]
+        if self.args.noconfirm:
+            cmd = ["pkgit", "-qi", "https://github.com/dim-ghub/caelestia-shell"]
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            warn(f"Failed to update Caelestia Shell: {e}")
+
         # Mark the new revision applied
         state.applied_rev = tip
         state.enabled_components = manifest.enabled_components

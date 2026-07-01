@@ -68,6 +68,17 @@ class Command:
         deployed = self.deploy_configs(source, manifest)
         run_hooks(manifest, "post_install")
 
+        print()
+        log("Installing Caelestia Shell via pkgit...")
+        import subprocess
+        cmd = ["pkgit", "-i", "https://github.com/dim-ghub/caelestia-shell"]
+        if self.args.noconfirm:
+            cmd = ["pkgit", "-qi", "https://github.com/dim-ghub/caelestia-shell"]
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            warn(f"Failed to install Caelestia Shell: {e}")
+
         DotsState(
             aur_helper=getattr(installer, "helper", DEFAULT_AUR_HELPER),
             applied_rev=tip,
