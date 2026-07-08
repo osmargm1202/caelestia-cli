@@ -25,11 +25,27 @@ from caelestia.utils.scheme import Scheme, get_scheme
 from caelestia.utils.theme import apply_colours
 
 
+VIDEO_EXTENSIONS = [".mp4", ".webm", ".mkv", ".avi", ".mov", ".wmv", ".flv"]
+
+
 def is_valid_image(path: Path) -> bool:
-    return path.is_file() and path.suffix in [".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".gif"]
+    return path.is_file() and path.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".gif"]
+
+
+def is_valid_video(path: Path) -> bool:
+    return path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS
+
+
+def is_valid_wallpaper(path: Path) -> bool:
+    return is_valid_image(path) or is_valid_video(path)
 
 
 def check_wall(wall: Path, filter_size: tuple[int, int], threshold: float) -> bool:
+    # PIL can't open video files; videos are assumed to already fit since
+    # they're not covered by the image-only resolution filter below.
+    if is_valid_video(wall):
+        return True
+
     with Image.open(wall) as img:
         width, height = img.size
         return width >= filter_size[0] * threshold and height >= filter_size[1] * threshold
@@ -47,7 +63,7 @@ def get_wallpapers(args: Namespace) -> list[Path]:
     if not directory.is_dir():
         return []
 
-    walls = [f for f in directory.rglob("*") if is_valid_image(f)]
+    walls = [f for f in directory.rglob("*") if is_valid_wallpaper(f)]
 
     if args.no_filter:
         return walls
@@ -105,6 +121,8 @@ def get_colours_for_wall(wall: Path | str, no_smart: bool) -> None:
 
     if wall.suffix.lower() == ".gif":
         wall = convert_gif(wall)
+    elif is_valid_video(wall):
+        wall = convert_video(wall)
 
     name = "dynamic"
 
@@ -147,15 +165,34 @@ def convert_gif(wall: Path) -> Path:
     return output_path
 
 
+def convert_video(wall: Path) -> Path:
+    cache = wallpapers_cache_dir / compute_hash(wall)
+    output_path = cache / "first_frame.png"
+
+    if not output_path.exists():
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", str(wall), "-vframes", "1", "-vf", "scale=512:-1", str(output_path)],
+            check=True,
+        )
+
+    return output_path
+
+
 def set_wallpaper(wall: Path, no_smart: bool) -> None:
     # Make path absolute
     wall = Path(wall).resolve()
 
-    if not is_valid_image(wall):
-        raise ValueError(f'"{wall}" is not a valid image')
+    if not is_valid_wallpaper(wall):
+        raise ValueError(f'"{wall}" is not a valid wallpaper')
 
-    # Use gif's 1st frame for thumb only
-    wall_cache = convert_gif(wall) if wall.suffix.lower() == ".gif" else wall
+    # Use gif's 1st frame / video's first frame for thumb + colour extraction only
+    if wall.suffix.lower() == ".gif":
+        wall_cache = convert_gif(wall)
+    elif is_valid_video(wall):
+        wall_cache = convert_video(wall)
+    else:
+        wall_cache = wall
 
     # Update files
     wallpaper_path_path.parent.mkdir(parents=True, exist_ok=True)
