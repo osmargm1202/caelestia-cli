@@ -17,6 +17,25 @@ The main control script for the Caelestia dotfiles.
 
 </details>
 
+## Rust migration (NixOS fork)
+
+This fork is being migrated from Python to Rust
+(see `docs/superpowers/specs/2026-07-10-rust-migration-design.md`).
+
+The `caelestia` binary is Rust; subcommands not yet ported are
+delegated transparently to the Python reference implementation in
+`python-ref/`. Behavior is drop-in identical.
+
+`install` and `update` are Arch-specific and will become stubs — on
+NixOS, dependencies are managed by the flake.
+
+### Runtime dependencies
+
+Provided automatically by the Nix package: swappy, libnotify, slurp,
+wl-clipboard, cliphist, xdg-utils, dart-sass, grim, fuzzel,
+gpu-screen-recorder, dconf, killall, ffmpeg (and optionally
+caelestia-shell via the `with-shell` package).
+
 ## Installation
 
 ### Arch linux
