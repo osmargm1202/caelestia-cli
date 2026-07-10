@@ -1,0 +1,8 @@
+[package]
+name = "caelestia"
+version = "1.0.0"
+edition = "2021"
+description = "Main control script for the Caelestia dotfiles (NixOS fork)"
+license = "GPL-3.0-only"
+
+[dependencies]
