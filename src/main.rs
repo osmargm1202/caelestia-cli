@@ -3,6 +3,8 @@ use std::os::unix::process::CommandExt;
 use std::process::Command;
 
 #[allow(dead_code)]
+mod ipc;
+#[allow(dead_code)]
 mod util;
 
 /// Subcommands implemented natively in Rust. Grows each migration phase.
