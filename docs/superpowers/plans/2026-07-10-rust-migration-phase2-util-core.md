@@ -24,7 +24,7 @@
 - Create: `src/util/mod.rs`, `src/util/paths.rs`
 - Modify: `src/main.rs` (add `mod util;`)
 
-- [ ] **Step 1: Add dependencies to `Cargo.toml`**
+- [x] **Step 1: Add dependencies to `Cargo.toml`**
 
 ```toml
 [dependencies]
@@ -34,7 +34,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
 
-- [ ] **Step 2: Create `src/util/mod.rs`**
+- [x] **Step 2: Create `src/util/mod.rs`**
 
 ```rust
 pub mod io;
@@ -44,7 +44,7 @@ pub mod paths;
 
 (io/notify come in Tasks 2-3; create empty `src/util/io.rs` and `src/util/notify.rs` placeholders now so it compiles, or add the mod lines per-task — implementer's choice, but the final state must match.)
 
-- [ ] **Step 3: Write failing tests in `src/util/paths.rs`**
+- [x] **Step 3: Write failing tests in `src/util/paths.rs`**
 
 Only the paths phase 2 needs (YAGNI — wallpaper/scheme paths arrive with their phases):
 
@@ -82,9 +82,9 @@ mod tests {
 
 NOTE: cargo runs tests in parallel threads sharing the environment — env-mutating tests can race. Put all env-mutating assertions in these two tests only, and have `override_env_vars_win` set/remove only vars the other test doesn't read; if flakiness appears, merge them into one test.
 
-- [ ] **Step 4: Run tests, verify red** (`nix develop --command cargo test paths`)
+- [x] **Step 4: Run tests, verify red** (`nix develop --command cargo test paths`)
 
-- [ ] **Step 5: Implement `src/util/paths.rs`**
+- [x] **Step 5: Implement `src/util/paths.rs`**
 
 Functions (not statics) so env is read at call time — matches Python import-time semantics closely enough for a CLI process and makes testing sane:
 
@@ -146,9 +146,9 @@ pub fn get_config() -> Value {
 
 (`Result` import only if needed; drop unused imports — clippy runs with `-D warnings`.)
 
-- [ ] **Step 6: Green + clippy** (`cargo test paths`, `cargo clippy --all-targets -- -D warnings`)
+- [x] **Step 6: Green + clippy** (`cargo test paths`, `cargo clippy --all-targets -- -D warnings`)
 
-- [ ] **Step 7: Commit** — `feat: add XDG path helpers (util/paths)`
+- [x] **Step 7: Commit** — `feat: add XDG path helpers (util/paths)`
 
 ---
 
@@ -158,7 +158,7 @@ pub fn get_config() -> Value {
 **Files:**
 - Create: `src/util/io.rs`
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```rust
 #[cfg(test)]
@@ -173,7 +173,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Red, then implement**
+- [x] **Step 2: Red, then implement**
 
 ```rust
 const LOG_COLOUR: u8 = 2;
@@ -198,7 +198,7 @@ pub fn fatal(msg: &str) -> ! {
 
 Allow `dead_code` where a helper isn't referenced yet (`#[allow(dead_code)]` on unused ones) — later phases consume them.
 
-- [ ] **Step 3: Green + clippy + commit** — `feat: add terminal log helpers (util/io)`
+- [x] **Step 3: Green + clippy + commit** — `feat: add terminal log helpers (util/io)`
 
 ---
 
@@ -208,7 +208,7 @@ Allow `dead_code` where a helper isn't referenced yet (`#[allow(dead_code)]` on 
 **Files:**
 - Create: `src/util/notify.rs`
 
-- [ ] **Step 1: Implement (no unit tests — pure subprocess glue; behavior covered by smoke tests)**
+- [x] **Step 1: Implement (no unit tests — pure subprocess glue; behavior covered by smoke tests)**
 
 ```rust
 use std::process::{Command, Stdio};
@@ -243,7 +243,7 @@ pub fn close_notification(id: &str) -> Result<()> {
 }
 ```
 
-- [ ] **Step 2: Build + clippy + commit** — `feat: add notify-send wrapper (util/notify)`
+- [x] **Step 2: Build + clippy + commit** — `feat: add notify-send wrapper (util/notify)`
 
 ---
 
@@ -254,7 +254,7 @@ pub fn close_notification(id: &str) -> Result<()> {
 - Create: `src/ipc/mod.rs` (`pub mod hypr;`), `src/ipc/hypr.rs`
 - Modify: `src/main.rs` (add `mod ipc;`)
 
-- [ ] **Step 1: Failing unit tests** (lua string generation is pure; socket framing tested against an in-process `UnixListener`):
+- [x] **Step 1: Failing unit tests** (lua string generation is pure; socket framing tested against an in-process `UnixListener`):
 
 ```rust
 #[cfg(test)]
@@ -310,7 +310,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Red, then implement**
+- [x] **Step 2: Red, then implement**
 
 ```rust
 use std::env;
@@ -402,7 +402,7 @@ pub fn dispatch(dispatcher: &str, args: &[String]) -> Result<bool> {
 
 Note `movetoworkspacesilent`: python does `a[0].split(",")[1]` for address and `[0]` for workspace — `split_once(',')` reproduces it for the only call shape used (`"special:X,address:0xY"`).
 
-- [ ] **Step 3: Green + clippy + commit** — `feat: add Hyprland IPC client (ipc/hypr)`
+- [x] **Step 3: Green + clippy + commit** — `feat: add Hyprland IPC client (ipc/hypr)`
 
 ---
 
@@ -413,7 +413,7 @@ Note `movetoworkspacesilent`: python does `a[0].split(",")[1]` for address and `
 - Create: `src/cli.rs`, `src/subcommands/mod.rs`
 - Modify: `src/main.rs`
 
-- [ ] **Step 1: `src/cli.rs` with clap derive**
+- [x] **Step 1: `src/cli.rs` with clap derive**
 
 ```rust
 use clap::{Args, Parser, Subcommand};
@@ -514,7 +514,7 @@ pub struct EmojiArgs {
 }
 ```
 
-- [ ] **Step 2: Update `main.rs` dispatch**
+- [x] **Step 2: Update `main.rs` dispatch**
 
 Replace `first_subcommand`/NATIVE logic:
 
@@ -594,9 +594,9 @@ Keep `delegate()`/`compute_pythonpath()` unchanged. Update the existing unit tes
 
 `tests/delegation.rs` keeps working: `scheme get -n` and `--version` both still delegate.
 
-- [ ] **Step 3: `src/subcommands/mod.rs`** — one `pub mod` per subcommand file; create the files as stubs returning `Ok(())` in this task ONLY if needed to compile, then fill them in Tasks 6-8 (each task replaces its stub).
+- [x] **Step 3: `src/subcommands/mod.rs`** — one `pub mod` per subcommand file; create the files as stubs returning `Ok(())` in this task ONLY if needed to compile, then fill them in Tasks 6-8 (each task replaces its stub).
 
-- [ ] **Step 4: Green (existing 5 tests + 2 new) + clippy + commit** — `feat: add clap tree and native dispatch for phase-2 subcommands`
+- [x] **Step 4: Green (existing 5 tests + 2 new) + clippy + commit** — `feat: add clap tree and native dispatch for phase-2 subcommands`
 
 NOTE: this task leaves native subcommands non-functional (empty stubs) until Tasks 6-8 land. That's fine mid-branch, but the branch must NOT merge until all phase-2 tasks are done.
 
@@ -608,7 +608,7 @@ NOTE: this task leaves native subcommands non-functional (empty stubs) until Tas
 **Files:**
 - Create: `src/subcommands/toggle.rs`, `src/subcommands/shell.rs`
 
-- [ ] **Step 1: Failing tests for the pure logic (in toggle.rs)**
+- [x] **Step 1: Failing tests for the pure logic (in toggle.rs)**
 
 ```rust
 #[cfg(test)]
@@ -645,7 +645,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Red, then implement toggle.rs**
+- [x] **Step 2: Red, then implement toggle.rs**
 
 Key pieces (complete the rest by transcribing toggle.py):
 
@@ -742,7 +742,7 @@ IMPORTANT (Nix patch coupling): the literals `"discord"` (twice: match class + c
 - `spawn_client` gating: `spawn[0].ends_with(".desktop") || which(spawn[0])` — for `which`, check PATH manually (`std::env::split_paths`) or shell out to `which`; PATH scan preferred (no dep). Spawn via `hypr.dispatch("exec", ...)` with the args shell-quoted like python `shlex.join` (implement a minimal `shlex_join`: quote args containing whitespace/special chars with single quotes, escaping embedded `'` as `'\''`).
 - clients fetched once and cached (fetch eagerly, store in a local var — no need for Option gymnastics).
 
-- [ ] **Step 3: Implement shell.rs** (transcription of shell.py):
+- [x] **Step 3: Implement shell.rs** (transcription of shell.py):
 
 ```rust
 use std::io::{BufRead, BufReader};
@@ -812,9 +812,9 @@ pub fn run(args: ShellArgs) -> Result<()> {
 }
 ```
 
-- [ ] **Step 4: Green + clippy. Live smoke on Hyprland:** `cargo run -- toggle specialws` (toggles focused special workspace), `cargo run -- shell -s` (prints IPC list). Compare against `python3 -m caelestia` equivalents (PYTHONPATH=python-ref/src).
+- [x] **Step 4: Green + clippy. Live smoke on Hyprland:** `cargo run -- toggle specialws` (toggles focused special workspace), `cargo run -- shell -s` (prints IPC list). Compare against `python3 -m caelestia` equivalents (PYTHONPATH=python-ref/src).
 
-- [ ] **Step 5: Commit** — `feat: native toggle and shell subcommands`
+- [x] **Step 5: Commit** — `feat: native toggle and shell subcommands`
 
 ---
 
@@ -824,14 +824,14 @@ pub fn run(args: ShellArgs) -> Result<()> {
 **Files:**
 - Create: `src/subcommands/screenshot.rs`, `src/subcommands/search.rs`
 
-- [ ] **Step 1: screenshot.rs** (transcription; key points):
+- [x] **Step 1: screenshot.rs** (transcription; key points):
 
 - `region == Some("slurp")` → run `["qs", "-c", "caelestia", "ipc", "call", "picker", openFreeze/open]` — reuse the `SHELL_CMD` literal pattern: define the same `const SHELL_CMD: &[&str] = &["qs", "-c", "caelestia"];` in this file too (the Nix substitution is per-file, matching the python patchPhase which patches shell.py AND screenshot.py).
 - explicit region → `grim -l 0 -g <region trimmed> -` captured to memory, piped into spawned `swappy -f -` (stdin write, `start_new_session` → `.process_group(0)` via `std::os::unix::process::CommandExt`).
 - fullscreen → `grim -o <focused monitor name> -` → `wl-copy` (stdin), write bytes to `screenshots_cache_dir()/<YYYYmmddHHMMSS>`, notify with actions open/save (use `util::notify::notify`), handle `open` (swappy detached) and `save` (rename into `screenshots_dir()` with `.png` suffix + second notify).
 - Timestamp format identical: `chrono`? NO — avoid the dependency: format via `std::time::SystemTime`? Manual date math is error-prone; add tiny dep `chrono` is overkill for one timestamp... Decision: use `chrono` (widely standard, adds ~200ms compile). `#[arg]`s already defined. Add `chrono = { version = "0.4", default-features = false, features = ["clock"] }` to Cargo.toml and format with `Local::now().format("%Y%m%d%H%M%S")` (and `%Y%m%d_%H-%M-%S` for record).
 
-- [ ] **Step 2: search.rs** (transcription):
+- [x] **Step 2: search.rs** (transcription):
 
 ```rust
 use std::path::Path;
@@ -889,7 +889,7 @@ pub fn run() -> Result<()> {
 
 NOTE search.py has no flags — clap variant is unit `Search`.
 
-- [ ] **Step 3: Green + clippy. Live smoke:** `cargo run -- screenshot` (full-screen notify flow), `cargo run -- screenshot -r` (region picker opens). Commit — `feat: native screenshot and search subcommands`
+- [x] **Step 3: Green + clippy. Live smoke:** `cargo run -- screenshot` (full-screen notify flow), `cargo run -- screenshot -r` (region picker opens). Commit — `feat: native screenshot and search subcommands`
 
 ---
 
@@ -899,7 +899,7 @@ NOTE search.py has no flags — clap variant is unit `Search`.
 **Files:**
 - Create: `src/subcommands/record.rs`, `src/subcommands/clipboard.rs`, `src/subcommands/emoji.rs`
 
-- [ ] **Step 1: Failing unit test for the pure helper**
+- [x] **Step 1: Failing unit test for the pure helper**
 
 ```rust
     #[test]
@@ -918,7 +918,7 @@ NOTE search.py has no flags — clap variant is unit `Search`.
     }
 ```
 
-- [ ] **Step 2: Red, then implement record.rs**
+- [x] **Step 2: Red, then implement record.rs**
 
 Transcription notes:
 - `RECORDER = "gpu-screen-recorder"`; pause → `pkill -USR2 -f gpu-screen-recorder`; running check → `pidof` exit code.
@@ -927,7 +927,7 @@ Transcription notes:
 - spawn detached (`process_group(0)`), write notif id to `recording_notif_path()`, then `try_wait` loop ~1s: if the process exited nonzero within 1s → close notification + failure notify (python `proc.wait(1)`).
 - stop: `pkill -f`, poll `pidof` at 100ms until gone, move file to `recordings_dir()/recording_<%Y%m%d_%H-%M-%S>.mp4` (`std::fs::rename`; if cross-device rename fails, copy+remove — python shutil.move does this), close start notif, `--clipboard` → `wl-copy --type text/uri-list` with `file://<path>\n` on stdin, action notify watch/open/delete (dbus-send ShowItems, fallback xdg-open parent; delete → remove file).
 
-- [ ] **Step 3: Stubs clipboard.rs / emoji.rs**
+- [x] **Step 3: Stubs clipboard.rs / emoji.rs**
 
 ```rust
 use anyhow::Result;
@@ -943,9 +943,9 @@ pub fn run(_args: ClipboardArgs) -> Result<()> {
 
 (emoji.rs analogous: "use the shell launcher (emoji picker) instead".)
 
-- [ ] **Step 4: Green + clippy. Live smoke:** `cargo run -- record` (start; notif appears), `cargo run -- record` again (stop; file lands in recordings dir), `cargo run -- clipboard` (clean error + exit 1).
+- [x] **Step 4: Green + clippy. Live smoke:** `cargo run -- record` (start; notif appears), `cargo run -- record` again (stop; file lands in recordings dir), `cargo run -- clipboard` (clean error + exit 1).
 
-- [ ] **Step 5: Commit** — `feat: native record subcommand; stub clipboard/emoji (shell owns them)`
+- [x] **Step 5: Commit** — `feat: native record subcommand; stub clipboard/emoji (shell owns them)`
 
 ---
 
@@ -955,7 +955,7 @@ pub fn run(_args: ClipboardArgs) -> Result<()> {
 - Modify: `default.nix` (postPatch)
 - Modify: `README.md` (migration section: status update)
 
-- [ ] **Step 1: Extend postPatch in default.nix**
+- [x] **Step 1: Extend postPatch in default.nix**
 
 After the existing python-ref substitutions add:
 
@@ -975,17 +975,17 @@ After the existing python-ref substitutions add:
 
 CAREFUL — verify each pattern actually appears in the Rust sources exactly once/expected count before relying on it (`grep -c`). `--replace-fail 'discord'` unquoted in python vs `'"discord"'` quoted here: python toggle.py patch replaced bare `discord` (hitting class-match AND command); the Rust source uses the same strings inside `json!` — patching `"discord"` (with quotes) hits both `"class": "discord"` and `"command": ["discord"]` plus the key `"discord"` — same effective result as the python patch (which also renamed the key). Keep semantics identical to python patch.
 
-- [ ] **Step 2: Update README migration section** — list which subcommands are now native vs delegated vs removed (clipboard/emoji → shell launcher).
+- [x] **Step 2: Update README migration section** — list which subcommands are now native vs delegated vs removed (clipboard/emoji → shell launcher).
 
-- [ ] **Step 3: `git add -A && nix build`** — postPatch must not fail; smoke `./result/bin/caelestia toggle --help` (clap help now, not argparse) and `./result/bin/caelestia scheme get -n` (still delegated argparse path).
+- [x] **Step 3: `git add -A && nix build`** — postPatch must not fail; smoke `./result/bin/caelestia toggle --help` (clap help now, not argparse) and `./result/bin/caelestia scheme get -n` (still delegated argparse path).
 
-- [ ] **Step 4: Commit** — `build: patch Rust sources in postPatch, update migration status`
+- [x] **Step 4: Commit** — `build: patch Rust sources in postPatch, update migration status`
 
 ---
 
 ### Task 10: Final phase verification
 
-- [ ] **Step 1: Full gate**
+- [x] **Step 1: Full gate**
 
 ```bash
 nix build
@@ -993,7 +993,7 @@ nix develop --command cargo test
 nix develop --command cargo clippy --all-targets -- -D warnings
 ```
 
-- [ ] **Step 2: Behavior parity sweep (live Hyprland session)** — for each native subcommand, output/behavior must match `PYTHONPATH=python-ref/src python3 -m caelestia <same args>`:
+- [x] **Step 2: Behavior parity sweep (live Hyprland session)** — for each native subcommand, output/behavior must match `PYTHONPATH=python-ref/src python3 -m caelestia <same args>`:
 
 ```bash
 ./result/bin/caelestia shell -s | head -5
@@ -1004,14 +1004,14 @@ nix develop --command cargo clippy --all-targets -- -D warnings
 ./result/bin/caelestia scheme list -n          # delegated, unchanged
 ```
 
-- [ ] **Step 3: Latency proof** (the point of the migration):
+- [x] **Step 3: Latency proof** (the point of the migration):
 
 ```bash
 time ./result/bin/caelestia clipboard 2>/dev/null   # native: ~5ms
 time ./result/bin/caelestia scheme get -n           # delegated: ~150-200ms
 ```
 
-- [ ] **Step 4: Commit any doc tweaks; phase done**
+- [x] **Step 4: Commit any doc tweaks; phase done**
 
 ---
 
