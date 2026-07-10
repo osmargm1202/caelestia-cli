@@ -12,12 +12,15 @@ fn xdg(var: &str, fallback: &str) -> PathBuf {
 }
 
 pub fn config_dir() -> PathBuf { xdg("XDG_CONFIG_HOME", ".config") }
+#[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn state_dir() -> PathBuf { xdg("XDG_STATE_HOME", ".local/state") }
 pub fn cache_dir() -> PathBuf { xdg("XDG_CACHE_HOME", ".cache") }
 pub fn pictures_dir() -> PathBuf { xdg("XDG_PICTURES_DIR", "Pictures") }
+#[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn videos_dir() -> PathBuf { xdg("XDG_VIDEOS_DIR", "Videos") }
 
 pub fn c_config_dir() -> PathBuf { config_dir().join("caelestia") }
+#[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn c_state_dir() -> PathBuf { state_dir().join("caelestia") }
 pub fn c_cache_dir() -> PathBuf { cache_dir().join("caelestia") }
 
@@ -29,11 +32,14 @@ pub fn screenshots_dir() -> PathBuf {
 }
 pub fn screenshots_cache_dir() -> PathBuf { c_cache_dir().join("screenshots") }
 
+#[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn recordings_dir() -> PathBuf {
     env::var("CAELESTIA_RECORDINGS_DIR").map(PathBuf::from)
         .unwrap_or_else(|_| videos_dir().join("Recordings"))
 }
+#[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn recording_path() -> PathBuf { c_state_dir().join("record/recording.mp4") }
+#[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn recording_notif_path() -> PathBuf { c_state_dir().join("record/notifid.txt") }
 
 /// ~/.config/caelestia/cli.json, `{}` when absent, warning (not error) on

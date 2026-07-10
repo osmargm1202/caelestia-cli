@@ -3,7 +3,6 @@ use std::process::{Command, Stdio};
 use anyhow::{Context, Result};
 
 /// notify-send wrapper; returns trimmed stdout (the action id / notif id).
-#[allow(dead_code)]
 pub fn notify(args: &[&str]) -> Result<String> {
     let out = Command::new("notify-send")
         .arg("-a")
@@ -15,7 +14,7 @@ pub fn notify(args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn close_notification(id: &str) -> Result<()> {
     Command::new("gdbus")
         .args([

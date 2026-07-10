@@ -7,7 +7,6 @@ use clap::Parser;
 mod cli;
 mod ipc;
 mod subcommands;
-#[allow(dead_code)]
 mod util;
 
 /// Subcommands implemented natively in Rust. Grows each migration phase.
