@@ -1,7 +1,9 @@
 {
   rev,
   lib,
+  rustPlatform,
   python3,
+  makeWrapper,
   installShellFiles,
   swappy,
   libnotify,
@@ -20,27 +22,13 @@
   withShell ? false,
   discordBin ? "discord",
   qtctStyle ? "Darkly",
-}:
-python3.pkgs.buildPythonApplication {
-  pname = "caelestia-cli";
-  version = "${rev}";
-  src = ./.;
-  pyproject = true;
+}: let
+  pythonEnv = python3.withPackages (ps: [
+    ps.materialyoucolor
+    ps.pillow
+  ]);
 
-  build-system = with python3.pkgs; [
-    hatch-vcs
-    hatchling
-  ];
-
-  dependencies = with python3.pkgs; [
-    materialyoucolor
-    pillow
-  ];
-
-  pythonImportsCheck = ["caelestia"];
-
-  nativeBuildInputs = [installShellFiles];
-  propagatedBuildInputs =
+  runtimeDeps =
     [
       swappy
       libnotify
@@ -57,33 +45,55 @@ python3.pkgs.buildPythonApplication {
       ffmpeg
     ]
     ++ lib.optional withShell caelestia-shell;
+in
+  rustPlatform.buildRustPackage {
+    pname = "caelestia-cli";
+    version = "${rev}";
+    src = ./.;
 
-  SETUPTOOLS_SCM_PRETEND_VERSION = 1;
+    cargoLock.lockFile = ./Cargo.lock;
 
-  patchPhase = ''
-    # Replace qs config call with nix shell pkg bin
-    substituteInPlace src/caelestia/subcommands/shell.py \
-    	--replace-fail '"qs", "-c", "caelestia"' '"caelestia-shell"'
-    substituteInPlace src/caelestia/subcommands/screenshot.py \
-    	--replace-fail '"qs", "-c", "caelestia"' '"caelestia-shell"'
+    nativeBuildInputs = [makeWrapper installShellFiles];
 
-    # Use config bin instead of discord + fix todoist
-    substituteInPlace src/caelestia/subcommands/toggle.py \
-    	--replace-fail 'discord' ${discordBin} \
-      --replace-fail '["todoist"]' '["todoist.desktop"]'
+    # Same substitutions as the old buildPythonApplication patchPhase,
+    # retargeted at python-ref/. They die with python-ref in phase 6.
+    postPatch = ''
+      substituteInPlace python-ref/src/caelestia/subcommands/shell.py \
+        --replace-fail '"qs", "-c", "caelestia"' '"caelestia-shell"'
+      substituteInPlace python-ref/src/caelestia/subcommands/screenshot.py \
+        --replace-fail '"qs", "-c", "caelestia"' '"caelestia-shell"'
 
-    # Use config style instead of darkly
-    substituteInPlace src/caelestia/data/templates/qtengine.json \
-    	--replace-fail 'Darkly' '${qtctStyle}'
-  '';
+      substituteInPlace python-ref/src/caelestia/subcommands/toggle.py \
+        --replace-fail 'discord' '${discordBin}' \
+        --replace-fail '["todoist"]' '["todoist.desktop"]'
 
-  postInstall = "installShellCompletion completions/caelestia.fish";
+      substituteInPlace python-ref/src/caelestia/data/templates/qtengine.json \
+        --replace-fail 'Darkly' '${qtctStyle}'
+    '';
 
-  meta = {
-    description = "The main control script for the Caelestia dotfiles";
-    homepage = "https://github.com/caelestia-dots/cli";
-    license = lib.licenses.gpl3Only;
-    mainProgram = "caelestia";
-    platforms = lib.platforms.linux;
-  };
-}
+    postInstall = ''
+      mkdir -p $out/share/caelestia/python
+      cp -r python-ref/src/caelestia $out/share/caelestia/python/
+
+      # Build-time replacement for the old pythonImportsCheck: fail the
+      # build if the shipped python-ref tree cannot even be imported.
+      ${pythonEnv}/bin/python3 -B -c "import sys; sys.path.insert(0, '$out/share/caelestia/python'); import caelestia"
+
+      installShellCompletion completions/caelestia.fish
+    '';
+
+    postFixup = ''
+      wrapProgram $out/bin/caelestia \
+        --set CAELESTIA_PYTHON ${pythonEnv}/bin/python3 \
+        --set CAELESTIA_PYTHONPATH $out/share/caelestia/python \
+        --prefix PATH : ${lib.makeBinPath runtimeDeps}
+    '';
+
+    meta = {
+      description = "The main control script for the Caelestia dotfiles (NixOS fork, Rust)";
+      homepage = "https://github.com/osmargm1202/caelestia-cli";
+      license = lib.licenses.gpl3Only;
+      mainProgram = "caelestia";
+      platforms = lib.platforms.linux;
+    };
+  }

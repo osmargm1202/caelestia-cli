@@ -33,8 +33,17 @@
     });
 
     devShells = forAllSystems (pkgs: {
-      default = pkgs.mkShellNoCC {
-        packages = [self.packages.${pkgs.system}.with-shell];
+      default = pkgs.mkShell {
+        packages = with pkgs; [
+          cargo
+          rustc
+          rustfmt
+          clippy
+          rust-analyzer
+          uv
+          (python3.withPackages (ps: [ps.materialyoucolor ps.pillow]))
+          alejandra
+        ];
       };
     });
   };
