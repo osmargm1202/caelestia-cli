@@ -28,3 +28,24 @@ fn delegates_when_no_subcommand_given() {
     let stdout = String::from_utf8(out.stdout).unwrap();
     assert_eq!(stdout.trim(), "-m caelestia --version");
 }
+
+#[test]
+fn removed_picker_commands_fail_loudly() {
+    for (command, pointer) in [
+        ("clipboard", "shell launcher (clipboard tab)"),
+        ("emoji", "shell launcher (emoji picker)"),
+    ] {
+        let out = Command::new(env!("CARGO_BIN_EXE_caelestia"))
+            .arg(command)
+            .output()
+            .expect("failed to run caelestia binary");
+
+        assert!(!out.status.success(), "{command} must exit nonzero");
+        let stderr = String::from_utf8(out.stderr).unwrap();
+        assert!(
+            stderr.contains("removed in this fork"),
+            "stderr: {stderr:?}"
+        );
+        assert!(stderr.contains(pointer), "stderr: {stderr:?}");
+    }
+}

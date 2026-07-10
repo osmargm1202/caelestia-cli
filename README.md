@@ -22,12 +22,17 @@ The main control script for the Caelestia dotfiles.
 This fork is being migrated from Python to Rust
 (see `docs/superpowers/specs/2026-07-10-rust-migration-design.md`).
 
-The `caelestia` binary is Rust; subcommands not yet ported are
-delegated transparently to the Python reference implementation in
-`python-ref/`. Behavior is drop-in identical.
+The `caelestia` binary is Rust. Migration status:
 
-`install` and `update` are Arch-specific and will become stubs — on
-NixOS, dependencies are managed by the flake.
+- Native Rust: `shell`, `toggle`, `screenshot`, `record`, and `search`.
+- Owned by the shell launcher: `clipboard` and `emoji`; their CLI commands
+  fail with a pointer to the corresponding launcher UI.
+- Delegated transparently to `python-ref/`: `scheme`, `wallpaper`, `resizer`,
+  `install`, `update`, top-level flags, and invocation without a subcommand.
+
+Behavior and CLI arguments remain compatible with the Python reference.
+`install` and `update` are Arch-specific and will become NixOS stubs when the
+Python backend is removed; dependencies are managed by the flake.
 
 ### Runtime dependencies
 

@@ -2,25 +2,58 @@ use std::env;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 
+use clap::Parser;
+
+mod cli;
+mod ipc;
+mod subcommands;
+mod util;
+
 /// Subcommands implemented natively in Rust. Grows each migration phase.
-const NATIVE: &[&str] = &[];
+const NATIVE: &[&str] = &[
+    "shell",
+    "toggle",
+    "screenshot",
+    "record",
+    "search",
+    "clipboard",
+    "emoji",
+];
 
 fn is_native(subcommand: &str) -> bool {
     NATIVE.contains(&subcommand)
 }
 
-/// First non-flag argument = the subcommand name, mirroring how argparse
-/// resolves it on the Python side.
-fn first_subcommand(args: &[String]) -> Option<&str> {
-    args.iter().map(String::as_str).find(|a| !a.starts_with('-'))
+/// argv[0] is the subcommand IFF it is not a flag. Top-level flags
+/// (-v/-h) always delegate — python still owns those until phase 6.
+fn native_subcommand(args: &[String]) -> Option<&str> {
+    match args.first() {
+        Some(first) if !first.starts_with('-') && is_native(first) => Some(first),
+        _ => None,
+    }
 }
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
 
-    match first_subcommand(&args) {
-        Some(sub) if is_native(sub) => unreachable!("no native subcommands yet"),
-        _ => delegate(&args),
+    if native_subcommand(&args).is_none() {
+        delegate(&args);
+    }
+
+    let cli = cli::Cli::parse();
+    let result = match cli.command {
+        cli::Native::Shell(a) => subcommands::shell::run(a),
+        cli::Native::Toggle(a) => subcommands::toggle::run(a),
+        cli::Native::Screenshot(a) => subcommands::screenshot::run(a),
+        cli::Native::Record(a) => subcommands::record::run(a),
+        cli::Native::Search => subcommands::search::run(),
+        cli::Native::Clipboard(a) => subcommands::clipboard::run(a),
+        cli::Native::Emoji(a) => subcommands::emoji::run(a),
+    };
+
+    if let Err(e) = result {
+        util::io::error(&format!("{e:#}"));
+        std::process::exit(1);
     }
 }
 
@@ -58,18 +91,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn first_subcommand_skips_flags() {
+    fn native_set_matches_phase_2() {
+        for sub in [
+            "shell",
+            "toggle",
+            "screenshot",
+            "record",
+            "search",
+            "clipboard",
+            "emoji",
+        ] {
+            assert!(is_native(sub), "{sub} must be native in phase 2");
+        }
+        for sub in ["scheme", "wallpaper", "resizer", "install", "update"] {
+            assert!(!is_native(sub), "{sub} must still delegate in phase 2");
+        }
+    }
+
+    #[test]
+    fn top_level_flags_delegate() {
         let args: Vec<String> = vec!["-v".into()];
-        assert_eq!(first_subcommand(&args), None);
-
-        let args: Vec<String> = vec!["shell".into(), "-d".into()];
-        assert_eq!(first_subcommand(&args), Some("shell"));
-
+        assert_eq!(native_subcommand(&args), None);
         let args: Vec<String> = vec!["--version".into(), "toggle".into()];
-        assert_eq!(first_subcommand(&args), Some("toggle"));
-
-        let args: Vec<String> = vec![];
-        assert_eq!(first_subcommand(&args), None);
+        assert_eq!(native_subcommand(&args), None);
+        let args: Vec<String> = vec!["toggle".into(), "comm".into()];
+        assert_eq!(native_subcommand(&args), Some("toggle"));
+        let args: Vec<String> = vec!["scheme".into(), "get".into()];
+        assert_eq!(native_subcommand(&args), None);
     }
 
     #[test]
@@ -78,16 +126,10 @@ mod tests {
             compute_pythonpath("/ref".into(), Some("/user/lib".into())),
             "/ref:/user/lib"
         );
-        assert_eq!(compute_pythonpath("/ref".into(), Some(String::new())), "/ref");
+        assert_eq!(
+            compute_pythonpath("/ref".into(), Some(String::new())),
+            "/ref"
+        );
         assert_eq!(compute_pythonpath("/ref".into(), None), "/ref");
-    }
-
-    #[test]
-    fn no_native_subcommands_in_phase_1() {
-        for sub in ["shell", "toggle", "scheme", "screenshot", "record",
-                    "clipboard", "emoji", "wallpaper", "resizer", "search",
-                    "install", "update"] {
-            assert!(!is_native(sub), "{sub} must delegate in phase 1");
-        }
     }
 }

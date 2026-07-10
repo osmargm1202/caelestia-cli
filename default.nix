@@ -67,6 +67,17 @@ in
         --replace-fail 'discord' '${discordBin}' \
         --replace-fail '["todoist"]' '["todoist.desktop"]'
 
+      # Same substitutions for native Rust subcommands.
+      substituteInPlace src/subcommands/shell.rs \
+        --replace-fail '"qs", "-c", "caelestia"' '"caelestia-shell"'
+      substituteInPlace src/subcommands/screenshot.rs \
+        --replace-fail '"qs", "-c", "caelestia"' '"caelestia-shell"'
+      substituteInPlace src/subcommands/search.rs \
+        --replace-fail '"qs", "-c", "caelestia"' '"caelestia-shell"'
+      substituteInPlace src/subcommands/toggle.rs \
+        --replace-fail '"discord"' '"${discordBin}"' \
+        --replace-fail '["todoist"]' '["todoist.desktop"]'
+
       substituteInPlace python-ref/src/caelestia/data/templates/qtengine.json \
         --replace-fail 'Darkly' '${qtctStyle}'
     '';
