@@ -17,7 +17,9 @@ fn is_subset(superset: &Value, subset: &Value) -> bool {
         Some(sv) => match v {
             Value::Object(_) => is_subset(sv, v),
             Value::String(s) => sv.as_str().is_some_and(|x| x.contains(s.as_str())),
-            Value::Array(a) => sv.as_array().is_some_and(|x| a.iter().all(|i| x.contains(i))),
+            Value::Array(a) => sv
+                .as_array()
+                .is_some_and(|x| a.iter().all(|i| x.contains(i))),
             other => sv == other,
         },
     })
@@ -66,10 +68,13 @@ fn deep_merge(user: &Value, defaults: &Value) -> Value {
         (Some(u), Some(d)) => {
             let mut out = serde_json::Map::new();
             for (k, dv) in d {
-                out.insert(k.clone(), match u.get(k) {
-                    Some(uv) => deep_merge(uv, dv),
-                    None => dv.clone(),
-                });
+                out.insert(
+                    k.clone(),
+                    match u.get(k) {
+                        Some(uv) => deep_merge(uv, dv),
+                        None => dv.clone(),
+                    },
+                );
             }
             for (k, uv) in u {
                 out.entry(k.clone()).or_insert_with(|| uv.clone());
@@ -96,7 +101,10 @@ fn shlex_quote(s: &str) -> String {
 }
 
 fn shlex_join(args: &[&str]) -> String {
-    args.iter().map(|a| shlex_quote(a)).collect::<Vec<_>>().join(" ")
+    args.iter()
+        .map(|a| shlex_quote(a))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Python truthiness for JSON values ("enable"/"move" checks).
@@ -162,10 +170,19 @@ impl Ctx {
 
     fn spawn_client(&mut self, matches: &[Value], spawn: &[&str]) -> Result<bool> {
         let runnable = spawn[0].ends_with(".desktop") || which(spawn[0]);
-        if runnable && !self.clients()?.iter().any(|c| matches.iter().any(|m| is_subset(c, m))) {
+        if runnable
+            && !self
+                .clients()?
+                .iter()
+                .any(|c| matches.iter().any(|m| is_subset(c, m)))
+        {
             hypr::dispatch(
                 "exec",
-                &[format!("[workspace special:{}] {}", self.workspace, shlex_join(spawn))],
+                &[format!(
+                    "[workspace special:{}] {}",
+                    self.workspace,
+                    shlex_join(spawn)
+                )],
             )?;
             return Ok(true);
         }
@@ -173,7 +190,11 @@ impl Ctx {
     }
 
     fn handle_client_config(&mut self, client: &Value) -> Result<bool> {
-        let matches = client.get("match").and_then(Value::as_array).cloned().unwrap_or_default();
+        let matches = client
+            .get("match")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
 
         let mut spawned = false;
         if let Some(cmd) = client.get("command").and_then(Value::as_array) {
@@ -196,7 +217,9 @@ fn specialws() -> Result<()> {
         .as_array()
         .and_then(|ms| ms.iter().find(|m| m["focused"].as_bool().unwrap_or(false)));
     if let Some(monitor) = focused {
-        let name = monitor["specialWorkspace"]["name"].as_str().unwrap_or_default();
+        let name = monitor["specialWorkspace"]["name"]
+            .as_str()
+            .unwrap_or_default();
         // python slices off the "special:" prefix with [8:]; empty → "special"
         let special = match name.get(8..) {
             Some(s) if !s.is_empty() => s,
@@ -212,11 +235,19 @@ pub fn run(args: ToggleArgs) -> Result<()> {
         return specialws();
     }
 
-    let cfg = merged_config(get_config().get("toggles").cloned().unwrap_or_else(|| json!({})));
+    let cfg = merged_config(
+        get_config()
+            .get("toggles")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+    );
 
     let mut spawned = false;
     if let Some(clients) = cfg.get(&args.workspace).and_then(Value::as_object) {
-        let mut ctx = Ctx { workspace: args.workspace.clone(), clients: None };
+        let mut ctx = Ctx {
+            workspace: args.workspace.clone(),
+            clients: None,
+        };
         for client in clients.values() {
             if truthy(client.get("enable")) && ctx.handle_client_config(client)? {
                 spawned = true;
@@ -239,8 +270,14 @@ mod tests {
     #[test]
     fn is_subset_matches_python_semantics() {
         // string = substring match
-        assert!(is_subset(&json!({"class": "discordcanary"}), &json!({"class": "discord"})));
-        assert!(!is_subset(&json!({"class": "firefox"}), &json!({"class": "discord"})));
+        assert!(is_subset(
+            &json!({"class": "discordcanary"}),
+            &json!({"class": "discord"})
+        ));
+        assert!(!is_subset(
+            &json!({"class": "firefox"}),
+            &json!({"class": "discord"})
+        ));
         // missing key
         assert!(!is_subset(&json!({}), &json!({"class": "x"})));
         // nested dict
@@ -265,7 +302,10 @@ mod tests {
 
     #[test]
     fn shlex_join_quotes_like_python() {
-        assert_eq!(shlex_join(&["foo", "a b", "it's"]), r#"foo 'a b' 'it'"'"'s'"#);
+        assert_eq!(
+            shlex_join(&["foo", "a b", "it's"]),
+            r#"foo 'a b' 'it'"'"'s'"#
+        );
         // safe chars stay unquoted, empty string gets quoted
         assert_eq!(shlex_join(&["a_@%+=:,./-1", ""]), "a_@%+=:,./-1 ''");
     }

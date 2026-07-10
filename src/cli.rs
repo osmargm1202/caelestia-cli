@@ -1,7 +1,11 @@
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "caelestia", disable_version_flag = true, infer_long_args = true)]
+#[command(
+    name = "caelestia",
+    disable_version_flag = true,
+    infer_long_args = true
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Native,
@@ -104,13 +108,22 @@ mod tests {
     #[test]
     fn long_flag_prefixes_parse() {
         let cli = Cli::try_parse_from(["caelestia", "clipboard", "--del"]).unwrap();
-        assert!(matches!(cli.command, Native::Clipboard(ClipboardArgs { delete: true })));
+        assert!(matches!(
+            cli.command,
+            Native::Clipboard(ClipboardArgs { delete: true })
+        ));
 
         let cli = Cli::try_parse_from(["caelestia", "shell", "--dae"]).unwrap();
-        assert!(matches!(cli.command, Native::Shell(ShellArgs { daemon: true, .. })));
+        assert!(matches!(
+            cli.command,
+            Native::Shell(ShellArgs { daemon: true, .. })
+        ));
 
         let cli = Cli::try_parse_from(["caelestia", "record", "--pau"]).unwrap();
-        assert!(matches!(cli.command, Native::Record(RecordArgs { pause: true, .. })));
+        assert!(matches!(
+            cli.command,
+            Native::Record(RecordArgs { pause: true, .. })
+        ));
     }
 
     /// `--l` matches both --log and --log-rules — ambiguous prefixes must

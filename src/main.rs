@@ -10,7 +10,15 @@ mod subcommands;
 mod util;
 
 /// Subcommands implemented natively in Rust. Grows each migration phase.
-const NATIVE: &[&str] = &["shell", "toggle", "screenshot", "record", "search", "clipboard", "emoji"];
+const NATIVE: &[&str] = &[
+    "shell",
+    "toggle",
+    "screenshot",
+    "record",
+    "search",
+    "clipboard",
+    "emoji",
+];
 
 fn is_native(subcommand: &str) -> bool {
     NATIVE.contains(&subcommand)
@@ -84,7 +92,15 @@ mod tests {
 
     #[test]
     fn native_set_matches_phase_2() {
-        for sub in ["shell", "toggle", "screenshot", "record", "search", "clipboard", "emoji"] {
+        for sub in [
+            "shell",
+            "toggle",
+            "screenshot",
+            "record",
+            "search",
+            "clipboard",
+            "emoji",
+        ] {
             assert!(is_native(sub), "{sub} must be native in phase 2");
         }
         for sub in ["scheme", "wallpaper", "resizer", "install", "update"] {
@@ -110,7 +126,10 @@ mod tests {
             compute_pythonpath("/ref".into(), Some("/user/lib".into())),
             "/ref:/user/lib"
         );
-        assert_eq!(compute_pythonpath("/ref".into(), Some(String::new())), "/ref");
+        assert_eq!(
+            compute_pythonpath("/ref".into(), Some(String::new())),
+            "/ref"
+        );
         assert_eq!(compute_pythonpath("/ref".into(), None), "/ref");
     }
 }

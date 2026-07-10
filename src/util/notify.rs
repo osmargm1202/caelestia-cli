@@ -18,7 +18,8 @@ pub fn notify(args: &[&str]) -> Result<String> {
 pub fn close_notification(id: &str) -> Result<()> {
     Command::new("gdbus")
         .args([
-            "call", "--session",
+            "call",
+            "--session",
             "--dest=org.freedesktop.Notifications",
             "--object-path=/org/freedesktop/Notifications",
             "--method=org.freedesktop.Notifications.CloseNotification",

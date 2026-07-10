@@ -23,7 +23,10 @@ fn shell_output(args: &[&str]) -> Result<String> {
 }
 
 fn filter_log(line: &str) -> bool {
-    !line.contains(&format!("Cannot open: file://{}/imagecache/", c_cache_dir().display()))
+    !line.contains(&format!(
+        "Cannot open: file://{}/imagecache/",
+        c_cache_dir().display()
+    ))
 }
 
 pub fn run(args: ShellArgs) -> Result<()> {
@@ -40,8 +43,10 @@ pub fn run(args: ShellArgs) -> Result<()> {
     } else if args.kill {
         shell_output(&["kill"])?;
     } else if !args.message.is_empty() {
-        let msg: Vec<&str> = std::iter::once("ipc").chain(std::iter::once("call"))
-            .chain(args.message.iter().map(String::as_str)).collect();
+        let msg: Vec<&str> = std::iter::once("ipc")
+            .chain(std::iter::once("call"))
+            .chain(args.message.iter().map(String::as_str))
+            .collect();
         print!("{}", shell_output(&msg)?);
     } else {
         let mut cmd = Command::new(SHELL_CMD[0]);
@@ -53,7 +58,10 @@ pub fn run(args: ShellArgs) -> Result<()> {
             cmd.arg("-d");
             cmd.status().context("failed to start shell daemon")?;
         } else {
-            let mut child = cmd.stdout(Stdio::piped()).spawn().context("failed to start shell")?;
+            let mut child = cmd
+                .stdout(Stdio::piped())
+                .spawn()
+                .context("failed to start shell")?;
             if let Some(stdout) = child.stdout.take() {
                 for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                     if filter_log(&line) {

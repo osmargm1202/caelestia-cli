@@ -14,12 +14,15 @@ fn socket_base() -> PathBuf {
 }
 
 #[allow(dead_code)] // consumed by record.rs (Task 8)
-pub fn socket2_path() -> PathBuf { socket_base().join(".socket2.sock") }
+pub fn socket2_path() -> PathBuf {
+    socket_base().join(".socket2.sock")
+}
 
 fn send(msg: &str) -> Result<String> {
     let path = socket_base().join(".socket.sock");
-    let mut sock = UnixStream::connect(&path)
-        .with_context(|| format!("cannot connect to Hyprland socket {path:?} (is Hyprland running?)"))?;
+    let mut sock = UnixStream::connect(&path).with_context(|| {
+        format!("cannot connect to Hyprland socket {path:?} (is Hyprland running?)")
+    })?;
     sock.write_all(msg.as_bytes())?;
     let mut resp = String::new();
     sock.read_to_string(&mut resp)?;
@@ -33,7 +36,9 @@ pub fn message_json(msg: &str) -> Result<Value> {
 }
 
 /// Raw request, mirrors python hypr.message(msg, is_json=False).
-pub fn message_raw(msg: &str) -> Result<String> { send(msg) }
+pub fn message_raw(msg: &str) -> Result<String> {
+    send(msg)
+}
 
 #[allow(dead_code)] // consumed by screenshot.rs (Task 7)
 pub fn batch(msgs: &[String]) -> Result<String> {
@@ -81,7 +86,9 @@ pub fn dispatch(dispatcher: &str, args: &[String]) -> Result<bool> {
     };
     let req = match req {
         Some(lua) => format!("dispatch {lua}"),
-        None => format!("dispatch {dispatcher} {}", args.join(" ")).trim_end().to_string(),
+        None => format!("dispatch {dispatcher} {}", args.join(" "))
+            .trim_end()
+            .to_string(),
     };
     Ok(message_raw(&req)? == "ok")
 }

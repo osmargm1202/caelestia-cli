@@ -26,7 +26,12 @@ fn region_screenshot(region: &str, freeze: bool) -> Result<()> {
         // python: subprocess.run(...) — not checked, fire-and-wait.
         Command::new(SHELL_CMD[0])
             .args(&SHELL_CMD[1..])
-            .args(["ipc", "call", "picker", if freeze { "openFreeze" } else { "open" }])
+            .args([
+                "ipc",
+                "call",
+                "picker",
+                if freeze { "openFreeze" } else { "open" },
+            ])
             .status()
             .context("failed to open region picker")?;
         return Ok(());
@@ -48,7 +53,9 @@ fn region_screenshot(region: &str, freeze: bool) -> Result<()> {
         .context("failed to start swappy")?;
 
     if let Some(mut stdin) = swappy.stdin.take() {
-        stdin.write_all(&out.stdout).context("failed to write to swappy stdin")?;
+        stdin
+            .write_all(&out.stdout)
+            .context("failed to write to swappy stdin")?;
     }
     Ok(())
 }
@@ -59,7 +66,9 @@ fn fullscreen() -> Result<()> {
         .as_array()
         .and_then(|arr| arr.iter().find(|m| m["focused"].as_bool().unwrap_or(false)))
         .context("no focused monitor found")?;
-    let name = focused["name"].as_str().context("focused monitor missing name")?;
+    let name = focused["name"]
+        .as_str()
+        .context("focused monitor missing name")?;
 
     let out = Command::new("grim")
         .args(["-o", name, "-"])
@@ -74,7 +83,9 @@ fn fullscreen() -> Result<()> {
         .spawn()
         .context("failed to start wl-copy")?;
     if let Some(mut stdin) = wl_copy.stdin.take() {
-        stdin.write_all(&sc_data).context("failed to write to wl-copy stdin")?;
+        stdin
+            .write_all(&sc_data)
+            .context("failed to write to wl-copy stdin")?;
     }
     let _ = wl_copy.wait();
 
@@ -91,25 +102,38 @@ fn fullscreen() -> Result<()> {
         "--action=open=Open",
         "--action=save=Save",
         "Screenshot taken",
-        &format!("Screenshot stored in {} and copied to clipboard", dest.display()),
+        &format!(
+            "Screenshot stored in {} and copied to clipboard",
+            dest.display()
+        ),
     ])?;
 
     match action.as_str() {
         "open" => {
             Command::new("swappy")
-                .args(["-f", dest.to_str().context("screenshot path is not valid UTF-8")?])
+                .args([
+                    "-f",
+                    dest.to_str()
+                        .context("screenshot path is not valid UTF-8")?,
+                ])
                 .process_group(0)
                 .spawn()
                 .context("failed to start swappy")?;
         }
         "save" => {
-            let mut new_dest = screenshots_dir().join(dest.file_name().context("screenshot path missing filename")?);
+            let mut new_dest = screenshots_dir().join(
+                dest.file_name()
+                    .context("screenshot path missing filename")?,
+            );
             new_dest.set_extension("png");
             if let Some(parent) = new_dest.parent() {
                 std::fs::create_dir_all(parent)?;
             }
             std::fs::rename(&dest, &new_dest)?;
-            notify(&["Screenshot saved", &format!("Saved to {}", new_dest.display())])?;
+            notify(&[
+                "Screenshot saved",
+                &format!("Saved to {}", new_dest.display()),
+            ])?;
         }
         _ => {}
     }
