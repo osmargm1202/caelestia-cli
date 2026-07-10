@@ -13,6 +13,7 @@ fn socket_base() -> PathBuf {
         .join(env::var("HYPRLAND_INSTANCE_SIGNATURE").unwrap_or_default())
 }
 
+#[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn socket2_path() -> PathBuf { socket_base().join(".socket2.sock") }
 
 fn send(msg: &str) -> Result<String> {
@@ -34,6 +35,7 @@ pub fn message_json(msg: &str) -> Result<Value> {
 /// Raw request, mirrors python hypr.message(msg, is_json=False).
 pub fn message_raw(msg: &str) -> Result<String> { send(msg) }
 
+#[allow(dead_code)] // consumed by screenshot.rs (Task 7)
 pub fn batch(msgs: &[String]) -> Result<String> {
     send(&format!("[[BATCH]]{}", msgs.join(";")))
 }

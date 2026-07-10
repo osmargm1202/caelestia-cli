@@ -5,7 +5,6 @@ use std::process::Command;
 use clap::Parser;
 
 mod cli;
-#[allow(dead_code)]
 mod ipc;
 mod subcommands;
 #[allow(dead_code)]
