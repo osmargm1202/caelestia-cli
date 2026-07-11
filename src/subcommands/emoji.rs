@@ -1,9 +1,21 @@
-use anyhow::Result;
+use std::process::Command;
+
+use anyhow::{bail, Context, Result};
 
 use crate::cli::EmojiArgs;
 
-/// Removed in the NixOS fork: the shell launcher's emoji picker
-/// replaces the old fuzzel-based picker.
+// default.nix substitutes this literal with "caelestia-shell" (see
+// shell.rs/screenshot.rs/search.rs).
+const SHELL_CMD: &[&str] = &["qs", "-c", "caelestia"];
+
 pub fn run(_args: EmojiArgs) -> Result<()> {
-    anyhow::bail!("removed in this fork — use the shell launcher (emoji picker) instead")
+    let status = Command::new(SHELL_CMD[0])
+        .args(&SHELL_CMD[1..])
+        .args(["ipc", "call", "launcher", "openEmoji"])
+        .status()
+        .context("failed to invoke emoji IPC")?;
+    if !status.success() {
+        bail!("emoji IPC failed: {status}");
+    }
+    Ok(())
 }

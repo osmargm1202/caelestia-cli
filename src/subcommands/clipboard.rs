@@ -1,9 +1,21 @@
-use anyhow::Result;
+use std::process::Command;
+
+use anyhow::{bail, Context, Result};
 
 use crate::cli::ClipboardArgs;
 
-/// Removed in the NixOS fork: the shell launcher's clipboard UI
-/// (C++ ClipboardCore) replaces the old cliphist+fuzzel picker.
+// default.nix substitutes this literal with "caelestia-shell" (see
+// shell.rs/screenshot.rs/search.rs).
+const SHELL_CMD: &[&str] = &["qs", "-c", "caelestia"];
+
 pub fn run(_args: ClipboardArgs) -> Result<()> {
-    anyhow::bail!("removed in this fork — use the shell launcher (clipboard tab) instead")
+    let status = Command::new(SHELL_CMD[0])
+        .args(&SHELL_CMD[1..])
+        .args(["ipc", "call", "launcher", "openClipboard"])
+        .status()
+        .context("failed to invoke clipboard IPC")?;
+    if !status.success() {
+        bail!("clipboard IPC failed: {status}");
+    }
+    Ok(())
 }
