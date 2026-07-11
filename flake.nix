@@ -39,11 +39,9 @@
         # upstream tag. Override at the flake-input level when bisecting.
         version = "v0.4.2";
         url = "https://github.com/osmargm1202/caelestia-cli/releases/download/v0.4.2/cli-x86_64-linux.tar.gz";
-        # Replace this with the checksum published in the matching release
-        # (see `.github/workflows/release.yml` and the artifact's `.sha256`
-        # file). The placeholder fails the build intentionally so any drift
-        # gets caught at evaluation time.
-        sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+        # Checksum published in the matching release artifact
+        # (cli-x86_64-linux.sha256). Auto-bumped by future workflow run.
+        sha256 = "f096c9d0a23916a748a2156f7e65a454c244e9e2ed4ba8c2799a1f46fbeda1ec";
       };
 
       with-cli = caelestia-cli.override { withShell = true; };
