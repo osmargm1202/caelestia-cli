@@ -40,8 +40,8 @@
         version = "v0.4.2";
         url = "https://github.com/osmargm1202/caelestia-cli/releases/download/v0.4.2/cli-x86_64-linux.tar.gz";
         # Checksum published in the matching release artifact
-        # (cli-x86_64-linux.sha256). Auto-bumped by future workflow run.
-        sha256 = "f096c9d0a23916a748a2156f7e65a454c244e9e2ed4ba8c2799a1f46fbeda1ec";
+        # (cli-x86_64-linux.sha256). Bump per release tag.
+        sha256 = "3fc9398873d64b33669bff82919c716b74d06d80769b5af476619272bc023b01";
       };
 
       with-cli = caelestia-cli.override { withShell = true; };
