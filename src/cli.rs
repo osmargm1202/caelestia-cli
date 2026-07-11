@@ -27,6 +27,8 @@ pub enum Native {
     Clipboard(ClipboardArgs),
     /// emoji/glyph utilities
     Emoji(EmojiArgs),
+    /// generate a colour scheme JSON from an image (used by golden parity tests)
+    Golden(GoldenArgs),
 }
 
 #[derive(Args)]
@@ -97,6 +99,18 @@ pub struct EmojiArgs {
     /// fetch emoji/glyph data from remote
     #[arg(short, long)]
     pub fetch: bool,
+}
+
+#[derive(Args)]
+pub struct GoldenArgs {
+    #[arg(long)]
+    pub image: String,
+    #[arg(long, default_value = "tonalspot")]
+    pub variant: String,
+    #[arg(long, default_value = "default")]
+    pub flavour: String,
+    #[arg(long, default_value = "dark")]
+    pub mode: String,
 }
 
 #[cfg(test)]

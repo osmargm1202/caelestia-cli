@@ -5,6 +5,7 @@ use std::process::Command;
 use clap::Parser;
 
 mod cli;
+mod core;
 mod ipc;
 mod subcommands;
 mod util;
@@ -18,6 +19,7 @@ const NATIVE: &[&str] = &[
     "search",
     "clipboard",
     "emoji",
+    "golden",
 ];
 
 fn is_native(subcommand: &str) -> bool {
@@ -49,6 +51,7 @@ fn main() {
         cli::Native::Search => subcommands::search::run(),
         cli::Native::Clipboard(a) => subcommands::clipboard::run(a),
         cli::Native::Emoji(a) => subcommands::emoji::run(a),
+        cli::Native::Golden(a) => subcommands::golden::run(a),
     };
 
     if let Err(e) = result {
