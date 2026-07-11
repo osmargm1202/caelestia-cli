@@ -8,7 +8,7 @@
   # docs/superpowers/specs/2026-07-10-cli-prebuilt-binaries.md.
   lib,
   stdenv,
-  fetchurl,
+  fetchzip,
   makeWrapper,
   installShellFiles,
   swappy,
@@ -59,11 +59,29 @@ in stdenv.mkDerivation {
 
   dontStrip = false;
 
+  # The release tarball ships `bin/caelestia` and `share/...`; the default
+  # `unpackPhase` only accepts a single top-level directory. Extract into
+  # `sourceRoot` so downstream phases see the layout they expect.
+  unpackPhase = ''
+    runHook preUnpack
+    mkdir -p $sourceRoot
+    tar -xzf $src -C $sourceRoot
+    runHook postUnpack
+  '';
+
+  # The release tarball contains two top-level directories (bin/, share/) so
+  # `src = ./.` style unpack would refuse. fetchurl preserves the layout; we
+  # use `src` directly and copy what we need below.
   installPhase = ''
     runHook preInstall
 
-    install -Dm755 $src/bin/caelestia $out/bin/caelestia
-    if [ -d $src/share ]; then
+    if [ -d "$src/bin" ]; then
+      install -Dm755 $src/bin/caelestia $out/bin/caelestia
+    else
+      # Older tarballs (pre-bin/) shipped the binary at the root.
+      install -Dm755 $src/caelestia $out/bin/caelestia
+    fi
+    if [ -d "$src/share" ]; then
       cp -r $src/share $out/share
     fi
 
