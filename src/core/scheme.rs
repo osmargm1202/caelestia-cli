@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -126,6 +126,7 @@ impl Scheme {
         modes
     }
 
+    #[allow(dead_code)]
     pub fn extra_record_args(&self) -> Result<Vec<String>> {
         let cfg = get_config();
         if let Some(extra) = cfg.get("record").and_then(|r| r.get("extraArgs")) {

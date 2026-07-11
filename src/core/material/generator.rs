@@ -16,6 +16,7 @@ use material_colors::scheme::variant::{
 /// `Scheme` model lives in `crate::core::scheme`.
 #[derive(Debug, Clone)]
 pub struct SchemeView<'a> {
+    #[allow(dead_code)]
     pub name: &'a str,
     pub flavour: &'a str,
     pub mode: &'a str,
@@ -167,7 +168,8 @@ pub fn gen_scheme(scheme: &SchemeView<'_>, primary: Argb) -> BTreeMap<String, St
     let scheme_obj = build_dynamic_scheme(primary, variant, !is_light);
 
     let mut colours: BTreeMap<String, Argb> = BTreeMap::new();
-    let palette_keys: [(&str, fn(&DynamicScheme) -> Argb); 54] = [
+    type PaletteFn = fn(&DynamicScheme) -> Argb;
+    let palette_keys: [(&str, PaletteFn); 54] = [
         ("primary_paletteKeyColor", |s| s.primary_palette_key_color()),
         ("secondary_paletteKeyColor", |s| {
             s.secondary_palette_key_color()
@@ -347,11 +349,11 @@ pub fn gen_scheme(scheme: &SchemeView<'_>, primary: Argb) -> BTreeMap<String, St
             .keys()
             .filter(|k| {
                 let k = k.as_str();
-                (k == "background"
+                k == "background"
                     || k.starts_with("surface")
                     || k == "base"
                     || k == "mantle"
-                    || k == "crust")
+                    || k == "crust"
             })
             .cloned()
             .collect();

@@ -10,6 +10,7 @@ pub use generator::gen_scheme;
 pub use score::score;
 
 /// Cached colour payload matching the Python reference output exactly.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 pub struct ColourMap {
     #[serde(flatten)]
@@ -17,6 +18,7 @@ pub struct ColourMap {
 }
 
 /// Loads the cached colour JSON for a given image/scheme/variant/flavour/mode tuple.
+#[allow(dead_code)]
 pub fn get_colours_for_image(
     image: &Path,
     scheme_name: &str,
@@ -50,5 +52,5 @@ pub fn get_colours_for_image(
     std::fs::create_dir_all(path.parent().expect("scheme cache parent"))?;
     std::fs::write(&path, serde_json::to_string(&colours)?)?;
 
-    Ok(ColourMap { colours: colours })
+    Ok(ColourMap { colours })
 }
