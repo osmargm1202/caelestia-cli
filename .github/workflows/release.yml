@@ -16,7 +16,7 @@ permissions:
 
 jobs:
     prebuilt-binaries:
-        name: Prebuilt binary (${{ matrix.target.os }}/${{ matrix.target.arch }})
+        name: Prebuilt binary (${{ matrix.os }}/${{ matrix.arch }})
         runs-on: ubuntu-latest
         strategy:
             fail-fast: false
@@ -44,7 +44,7 @@ jobs:
             - name: Install Rust toolchain
               uses: dtolnay/rust-toolchain@stable
               with:
-                  targets: ${{ matrix.target.target }}
+                  targets: ${{ matrix.target }}
 
             - name: Cache cargo
               uses: actions/cache@v4
@@ -60,7 +60,7 @@ jobs:
             - name: Build release binary
               run: >-
                 cargo build --release
-                --target "${{ matrix.target.target }}"
+                --target "${{ matrix.target }}"
               env:
                   # Force the snapshot tests + golden harness to stay inert on CI
                   # so the build never depends on a PNG file we don't have.
