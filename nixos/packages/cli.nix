@@ -8,7 +8,7 @@
   # docs/superpowers/specs/2026-07-10-cli-prebuilt-binaries.md.
   lib,
   stdenv,
-  fetchzip,
+  fetchurl,
   makeWrapper,
   installShellFiles,
   swappy,
