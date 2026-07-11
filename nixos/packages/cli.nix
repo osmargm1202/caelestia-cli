@@ -34,19 +34,8 @@
   # Used by the version-pinning consumers; an empty/unset value is allowed for
   # `option`-style wiring in the consumer flake.
   ...
-}:
-
-stdenv.mkDerivation {
-  pname = "caelestia-cli";
-  version = version;
-
-  src = fetchurl { inherit url sha256; };
-
-  nativeBuildInputs = [ makeWrapper installShellFiles ];
-
-  dontStrip = false;
-
-  runtimeDeps = [
+}: let
+  cliRuntimeDeps = [
     swappy
     libnotify
     slurp
@@ -60,6 +49,15 @@ stdenv.mkDerivation {
     killall
     ffmpeg
   ];
+in stdenv.mkDerivation {
+  pname = "caelestia-cli";
+  version = version;
+
+  src = fetchurl { inherit url sha256; };
+
+  nativeBuildInputs = [ makeWrapper installShellFiles ];
+
+  dontStrip = false;
 
   installPhase = ''
     runHook preInstall
@@ -78,7 +76,7 @@ stdenv.mkDerivation {
   postFixup = ''
     wrapProgram $out/bin/caelestia \
       ${lib.optionalString withShell "--prefix PATH : ${lib.makeBinPath [ caelestia-shell ]}"} \
-      --prefix PATH : ${lib.makeBinPath runtimeDeps}
+      --prefix PATH : ${lib.makeBinPath cliRuntimeDeps}
   '';
 
   # Mirror the upstream substitutions that previously lived in `default.nix`'s
@@ -87,8 +85,6 @@ stdenv.mkDerivation {
   # Consumers that need different defaults (discord variant, Qt theme) should
   # set `discordBin` / `qtctStyle` on the flake input.
   inherit discordBin qtctStyle;
-
-  passthru.withShell = caelestia-cli.override { inherit withShell; };
 
   meta = {
     description = "Prebuilt CLI for Caelestia dots (downloaded from a release tarball)";
