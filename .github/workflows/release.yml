@@ -27,15 +27,17 @@ jobs:
                       target: x86_64-unknown-linux-gnu
                       artifact: cli-x86_64-linux
                       binary: target/release/caelestia
-                    - os: linux
-                      arch: aarch64
-                      target: aarch64-unknown-linux-gnu
-                      artifact: cli-aarch64-linux
-                      # Cross-build needs the target toolchain; the runner is amd64
-                      # so this often fails unless an explicit cross setup is
-                      # configured. Kept here so adding arm64 hosts is one line
-                      # away, but disabled by default.
-                      binary: target/aarch64-unknown-linux-gnu/release/caelestia
+                    # Future: aarch64 via cross/cross-toolchain runners. Disabled
+                    # for now — the native linux runner is amd64 and emits x86_64
+                    # objects, which the aarch64-linker rejects. Re-enable by
+                    # switching this to a `ubuntu-24.04-arm` runner image and
+                    # installing `gcc-aarch64-linux-gnu` + `rustup target add
+                    # aarch64-unknown-linux-gnu`.
+                    # - os: linux
+                    #   arch: aarch64
+                    #   target: aarch64-unknown-linux-gnu
+                    #   artifact: cli-aarch64-linux
+                    #   binary: target/aarch64-unknown-linux-gnu/release/caelestia
         steps:
             - uses: actions/checkout@v4
               with:
