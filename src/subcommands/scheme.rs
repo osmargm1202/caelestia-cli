@@ -5,15 +5,17 @@ use std::collections::BTreeMap;
 
 use crate::core::scheme::{Scheme, SCHEME_VARIANTS};
 
-/// `caelestia scheme list/get/set` — native implementation that reads from the
-/// shipped `schemes/` data tree and mirrors the Python reference. The `set`
-/// subcommand persists via the atomic JSON helper and writes the current
-/// `scheme.json` snapshot under `~/.local/state/caelestia/`.
+/// `caelestia scheme list/get/set/preview` — native implementation that reads
+/// from the shipped `schemes/` data tree and mirrors the Python reference. The
+/// `set` subcommand persists via the atomic JSON helper and writes the current
+/// `scheme.json` snapshot under `~/.local/state/caelestia/`. The `preview`
+/// subcommand emits a single JSON object to stdout without touching any state.
 pub fn run(args: SchemeActionArgs) -> Result<()> {
     match args.action {
         SchemeAction::List(opts) => list(opts),
         SchemeAction::Get(opts) => get(opts),
         SchemeAction::Set(opts) => set(opts),
+        SchemeAction::Preview(opts) => preview(opts),
     }
 }
 
@@ -22,6 +24,7 @@ pub enum SchemeAction {
     List(ListOptions),
     Get(GetOptions),
     Set(SetOptions),
+    Preview(PreviewOptions),
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -62,6 +65,22 @@ pub struct SetOptions {
     pub mode: Option<String>,
     #[arg(short = 'v', long)]
     pub variant: Option<String>,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct PreviewOptions {
+    /// material variant to generate the preview for (e.g. tonalspot, monochrome)
+    #[arg(long, value_name = "VARIANT")]
+    pub variant: String,
+    /// override the scheme name; defaults to the current `scheme.json` name
+    #[arg(long, value_name = "NAME")]
+    pub name: Option<String>,
+    /// override the scheme flavour
+    #[arg(long, value_name = "FLAVOUR")]
+    pub flavour: Option<String>,
+    /// override the scheme mode (dark|light)
+    #[arg(long, value_name = "MODE")]
+    pub mode: Option<String>,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -224,4 +243,38 @@ fn pick(options: &[String], current: &str) -> String {
     let next =
         (current.as_bytes().first().copied().unwrap_or_default() as usize + 1) % options.len();
     options[next].clone()
+}
+
+/// Emits a single JSON object describing the colour palette that the M3
+/// generator would produce for the requested variant. Crucially, it never
+/// writes to disk, never spawns theme hooks, and never notifies the user; the
+/// shell drives any side effects downstream.
+fn preview(opts: PreviewOptions) -> Result<()> {
+    let current = Scheme::load()?;
+    let name = opts.name.unwrap_or(current.name);
+    let flavour = opts.flavour.unwrap_or(current.flavour);
+    let mode = opts.mode.unwrap_or(current.mode);
+    if !SCHEME_VARIANTS.contains(&opts.variant.as_str()) {
+        anyhow::bail!(
+            "unknown variant `{}`; expected one of {}",
+            opts.variant,
+            SCHEME_VARIANTS.join(", ")
+        );
+    }
+    let path = crate::core::scheme::Scheme::colours_path_for(&name, &flavour, &mode);
+    let stored = crate::core::scheme::read_colours_from_file(&path);
+    if stored.is_empty() {
+        anyhow::bail!(
+            "no stored palette for {name}/{flavour}/{mode}; run `caelestia scheme set -m {mode}` first"
+        );
+    }
+    let payload = serde_json::json!({
+        "name": name,
+        "flavour": flavour,
+        "mode": mode,
+        "variant": opts.variant,
+        "colours": stored,
+    });
+    println!("{}", serde_json::to_string(&payload)?);
+    Ok(())
 }

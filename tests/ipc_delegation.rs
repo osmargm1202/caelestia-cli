@@ -6,7 +6,11 @@ use std::process::Command;
 fn write_fake_qs(dir: &Path) {
     let bin = dir.join("qs");
     let script = "printf 'argv=%s\\n' \"$*\" >> \"$TRACE\"\n";
-    fs::write(&bin, format!("#!/bin/sh\nset -e\nTRACE=\"$TRACE\"\n{script}")).unwrap();
+    fs::write(
+        &bin,
+        format!("#!/bin/sh\nset -e\nTRACE=\"$TRACE\"\n{script}"),
+    )
+    .unwrap();
     fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
 }
 
@@ -53,10 +57,7 @@ fn emoji_delegates_to_shell_launcher_ipc() {
 }
 
 fn tempdir() -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "caelestia-ipc-test-{}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("caelestia-ipc-test-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     dir
 }
