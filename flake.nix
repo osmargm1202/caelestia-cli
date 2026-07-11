@@ -34,6 +34,7 @@
       # downstream flakes (`~Hobby/nixos`) so `nh os switch` does not need to
       # compile Rust from source on every machine.
       caelestia-cli-bin = pkgs.callPackage ./nixos/packages/cli.nix {
+        caelestia-shell = inputs.caelestia-shell.packages.${pkgs.system}.default;
         # Stable tag pin; bump via the `release.yml` workflow once per
         # upstream tag. Override at the flake-input level when bisecting.
         version = "v0.4.2";
