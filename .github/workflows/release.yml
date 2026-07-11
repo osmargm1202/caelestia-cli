@@ -26,7 +26,7 @@ jobs:
                       arch: x86_64
                       target: x86_64-unknown-linux-gnu
                       artifact: cli-x86_64-linux
-                      binary: target/release/caelestia
+                      binary: target/x86_64-unknown-linux-gnu/release/caelestia
                     # Future: aarch64 via cross/cross-toolchain runners. Disabled
                     # for now — the native linux runner is amd64 and emits x86_64
                     # objects, which the aarch64-linker rejects. Re-enable by
