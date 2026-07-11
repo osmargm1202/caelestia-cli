@@ -36,8 +36,9 @@
 Run:
 
 ```bash
+test -e .github/workflows/release.yml
 rg -n 'caelestia-cli-bin|release\.yml|releases/download|nixos/packages/cli\.nix' \
-  flake.nix .github nixos docs
+  flake.nix nixos docs/superpowers/specs README.md
 ```
 
 Expected: matches exist before removal.
@@ -71,8 +72,9 @@ Expected: only release-distribution files are removed.
 Run:
 
 ```bash
+test ! -e .github/workflows/release.yml
 if rg -n 'caelestia-cli-bin|release\.yml|releases/download|nixos/packages/cli\.nix' \
-  flake.nix .github nixos docs; then
+  flake.nix nixos docs/superpowers/specs README.md; then
   exit 1
 fi
 ```

@@ -30,22 +30,8 @@
         caelestia-shell = inputs.caelestia-shell.packages.${pkgs.system}.default;
       };
 
-      # Prebuilt binary downloaded from a GitHub release tarball. Used by
-      # downstream flakes (`~Hobby/nixos`) so `nh os switch` does not need to
-      # compile Rust from source on every machine.
-      caelestia-cli-bin = pkgs.callPackage ./nixos/packages/cli.nix {
-        caelestia-shell = inputs.caelestia-shell.packages.${pkgs.system}.default;
-        # Stable tag pin; bump via the `release.yml` workflow once per
-        # upstream tag. Override at the flake-input level when bisecting.
-        version = "v0.4.2";
-        url = "https://github.com/osmargm1202/caelestia-cli/releases/download/v0.4.2/cli-x86_64-linux.tar.gz";
-        # Checksum published in the matching release artifact
-        # (cli-x86_64-linux.sha256). Bump per release tag.
-        sha256 = "fb790b151c387efc0dda00981f60133f48290da866769c2e771fd5dbc7e1eb95";
-      };
-
       with-cli = caelestia-cli.override { withShell = true; };
-      default = caelestia-cli-bin;
+      default = caelestia-cli;
     });
 
     devShells = forAllSystems (pkgs: {
