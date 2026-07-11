@@ -113,12 +113,18 @@ fn run_rust(image: &Path, variant: &str, flavour: &str, mode: &str) -> BTreeMap<
     // Defer to the compiled Rust binary via a JSON helper subcommand. Until the
     // parity subcommand is wired in, fall back to a placeholder invocation that
     // the user can swap out via the `CAELESTIA_GOLDEN_BIN` env var.
-    let bin = env("CAELESTIA_GOLDEN_BIN")
-        .unwrap_or_else(|| "target/debug/caelestia".to_string());
+    let bin = env("CAELESTIA_GOLDEN_BIN").unwrap_or_else(|| "target/debug/caelestia".to_string());
     let output = Command::new(&bin)
         .args([
-            "golden", "--image", image.to_str().unwrap(), "--variant", variant,
-            "--flavour", flavour, "--mode", mode,
+            "golden",
+            "--image",
+            image.to_str().unwrap(),
+            "--variant",
+            variant,
+            "--flavour",
+            flavour,
+            "--mode",
+            mode,
         ])
         .output()
         .expect("failed to spawn rust golden harness");

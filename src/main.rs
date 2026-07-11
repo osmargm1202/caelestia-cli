@@ -19,6 +19,7 @@ const NATIVE: &[&str] = &[
     "search",
     "clipboard",
     "emoji",
+    "scheme",
     "golden",
 ];
 
@@ -51,6 +52,7 @@ fn main() {
         cli::Native::Search => subcommands::search::run(),
         cli::Native::Clipboard(a) => subcommands::clipboard::run(a),
         cli::Native::Emoji(a) => subcommands::emoji::run(a),
+        cli::Native::Scheme(a) => subcommands::scheme::run(a),
         cli::Native::Golden(a) => subcommands::golden::run(a),
     };
 
@@ -103,10 +105,11 @@ mod tests {
             "search",
             "clipboard",
             "emoji",
+            "scheme",
         ] {
             assert!(is_native(sub), "{sub} must be native in phase 2");
         }
-        for sub in ["scheme", "wallpaper", "resizer", "install", "update"] {
+        for sub in ["wallpaper", "resizer", "install", "update"] {
             assert!(!is_native(sub), "{sub} must still delegate in phase 2");
         }
     }
@@ -120,7 +123,7 @@ mod tests {
         let args: Vec<String> = vec!["toggle".into(), "comm".into()];
         assert_eq!(native_subcommand(&args), Some("toggle"));
         let args: Vec<String> = vec!["scheme".into(), "get".into()];
-        assert_eq!(native_subcommand(&args), None);
+        assert_eq!(native_subcommand(&args), Some("scheme"));
     }
 
     #[test]

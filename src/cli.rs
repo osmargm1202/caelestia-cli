@@ -27,6 +27,8 @@ pub enum Native {
     Clipboard(ClipboardArgs),
     /// emoji/glyph utilities
     Emoji(EmojiArgs),
+    /// manage the colour scheme
+    Scheme(SchemeActionArgs),
     /// generate a colour scheme JSON from an image (used by golden parity tests)
     Golden(GoldenArgs),
 }
@@ -112,6 +114,8 @@ pub struct GoldenArgs {
     #[arg(long, default_value = "dark")]
     pub mode: String,
 }
+
+pub use crate::subcommands::scheme::SchemeActionArgs;
 
 #[cfg(test)]
 mod tests {

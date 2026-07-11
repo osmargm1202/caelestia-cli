@@ -55,10 +55,14 @@ impl Scheme {
     }
 
     pub fn colours_path(&self) -> std::path::PathBuf {
+        Self::colours_path_for(&self.name, &self.flavour, &self.mode)
+    }
+
+    pub fn colours_path_for(name: &str, flavour: &str, mode: &str) -> std::path::PathBuf {
         scheme_data_dir()
-            .join(&self.name)
-            .join(&self.flavour)
-            .join(&self.mode)
+            .join(name)
+            .join(flavour)
+            .join(mode)
             .with_extension("txt")
     }
 
@@ -160,6 +164,17 @@ pub fn read_colours_from_file(path: &Path) -> HashMap<String, String> {
             }
         })
         .collect()
+}
+
+impl std::fmt::Display for Scheme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Current scheme:\n    Name: {}\n    Flavour: {}\n    Mode: {}\n    Variant: {}\n    Colours: {}\n",
+            self.name, self.flavour, self.mode, self.variant,
+            self.colours.len()
+        )
+    }
 }
 
 #[cfg(test)]

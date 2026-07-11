@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::cli::GoldenArgs;
-use crate::core::material::{generator::SchemeView, gen_scheme, score};
+use crate::core::material::{gen_scheme, generator::SchemeView, score};
 
 /// Internal subcommand that regenerates a colour scheme JSON from an image,
 /// variant/flavour/mode tuple. It is exercised by the golden parity harness and
