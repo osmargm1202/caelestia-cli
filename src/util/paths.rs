@@ -1,6 +1,8 @@
 use std::env;
-use std::path::PathBuf;
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 
+use anyhow::{Context, Result};
 use serde_json::Value;
 
 fn home() -> PathBuf {
@@ -68,6 +70,52 @@ pub fn recording_path() -> PathBuf {
 #[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn recording_notif_path() -> PathBuf {
     c_state_dir().join("record/notifid.txt")
+}
+
+pub fn scheme_path() -> PathBuf {
+    c_state_dir().join("scheme.json")
+}
+
+pub fn scheme_data_dir() -> PathBuf {
+    c_data_dir().join("schemes")
+}
+
+pub fn scheme_cache_dir() -> PathBuf {
+    c_cache_dir().join("schemes")
+}
+
+pub fn c_data_dir() -> PathBuf {
+    let raw = env::var("XDG_DATA_HOME").ok();
+    let base = raw
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home().join(".local/share"));
+    base.join("caelestia")
+}
+
+pub fn compute_hash<P: AsRef<Path>>(path: P) -> String {
+    let path = path.as_ref();
+    let h = path.as_os_str().as_bytes().iter().fold(0u64, |acc, b| {
+        acc.wrapping_mul(31).wrapping_add(u64::from(*b))
+    });
+    format!("{:016x}", h)
+}
+
+/// Writes `value` atomically to `path`: serialises to JSON, writes to a temp file in
+/// the same directory, then renames into place. Mirrors `python paths.atomic_dump`.
+pub fn atomic_dump<T: serde::Serialize>(path: PathBuf, value: &T) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating parent dir for {}", path.display()))?;
+    }
+    let tmp = path.with_extension("tmp");
+    let serialised = serde_json::to_string_pretty(value)
+        .with_context(|| format!("serialising for atomic dump to {}", path.display()))?;
+    std::fs::write(&tmp, format!("{serialised}\n"))
+        .with_context(|| format!("writing temp file {}", tmp.display()))?;
+    std::fs::rename(&tmp, &path)
+        .with_context(|| format!("renaming {} -> {}", tmp.display(), path.display()))?;
+    Ok(())
 }
 
 /// ~/.config/caelestia/cli.json, `{}` when absent, warning (not error) on
