@@ -70,12 +70,11 @@ jobs:
 
             - name: Stage tarball
               run: |
-                  mkdir -p staging
-                  cp "${{ matrix.binary }}" staging/caelestia
-                  mkdir -p staging/share/completions
+                  mkdir -p staging/bin staging/share/completions
+                  cp "${{ matrix.binary }}" staging/bin/caelestia
                   cp completions/caelestia.fish staging/share/completions/
                   cd staging
-                  tar czf ../"${{ matrix.artifact }}.tar.gz" caelestia share
+                  tar czf ../"${{ matrix.artifact }}.tar.gz" bin share
                   cd ..
                   sha256sum "${{ matrix.artifact }}.tar.gz" | tee "${{ matrix.artifact }}.sha256"
 
