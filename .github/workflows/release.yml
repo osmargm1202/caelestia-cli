@@ -58,7 +58,9 @@ jobs:
                       ${{ runner.os }}-cargo-
 
             - name: Build release binary
-              run: cargo build --release --target ${{ matrix.target.target }}
+              run: >-
+                cargo build --release
+                --target "${{ matrix.target.target }}"
               env:
                   # Force the snapshot tests + golden harness to stay inert on CI
                   # so the build never depends on a PNG file we don't have.
@@ -67,14 +69,13 @@ jobs:
             - name: Stage tarball
               run: |
                   mkdir -p staging
-                  cp ${{ matrix.binary }} staging/caelestia
+                  cp "${{ matrix.binary }}" staging/caelestia
                   mkdir -p staging/share/completions
                   cp completions/caelestia.fish staging/share/completions/
                   cd staging
-                  tar czf ../${{ matrix.artifact }}.tar.gz caelestia share
+                  tar czf ../"${{ matrix.artifact }}.tar.gz" caelestia share
                   cd ..
-                  sha256sum ${{ matrix.artifact }}.tar.gz | tee ${{ matrix.artifact }}.sha256
-                  sha256sum cli-${TARGET_OS}.tar.gz
+                  sha256sum "${{ matrix.artifact }}.tar.gz" | tee "${{ matrix.artifact }}.sha256"
 
             - name: Upload artifact
               uses: actions/upload-artifact@v4
