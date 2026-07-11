@@ -22,6 +22,7 @@
 
 **Files:**
 - Modify: `flake.nix`
+- Modify: `docs/superpowers/plans/2026-07-10-remove-github-release-distribution.md`
 - Delete: `.github/workflows/release.yml`
 - Delete: `nixos/packages/cli.nix`
 - Delete: `docs/superpowers/specs/2026-07-10-cli-prebuilt-binaries.md`
