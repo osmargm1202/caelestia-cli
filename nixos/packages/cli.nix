@@ -61,11 +61,13 @@ in stdenv.mkDerivation {
 
   # The release tarball ships `bin/caelestia` and `share/...`; the default
   # `unpackPhase` only accepts a single top-level directory. Extract into
-  # `sourceRoot` so downstream phases see the layout they expect.
+  # the per-build source root (`@out@` resolved to a tmpdir) so downstream
+  # phases see the layout they expect.
   unpackPhase = ''
     runHook preUnpack
-    mkdir -p $sourceRoot
-    tar -xzf $src -C $sourceRoot
+    sourceRoot="$NIX_BUILD_TOP/source"
+    mkdir -p "$sourceRoot"
+    tar -xzf "$src" -C "$sourceRoot"
     runHook postUnpack
   '';
 
