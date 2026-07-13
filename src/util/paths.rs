@@ -57,6 +57,19 @@ pub fn screenshots_cache_dir() -> PathBuf {
     c_cache_dir().join("screenshots")
 }
 
+pub fn wallpaper_path_path() -> PathBuf {
+    c_state_dir().join("wallpaper/path.txt")
+}
+pub fn wallpaper_link_path() -> PathBuf {
+    c_state_dir().join("wallpaper/current")
+}
+pub fn wallpaper_thumbnail_path() -> PathBuf {
+    c_state_dir().join("wallpaper/thumbnail.jpg")
+}
+pub fn wallpapers_cache_dir() -> PathBuf {
+    c_cache_dir().join("wallpapers")
+}
+
 #[allow(dead_code)] // consumed by record.rs (Task 8)
 pub fn recordings_dir() -> PathBuf {
     env::var("CAELESTIA_RECORDINGS_DIR")
@@ -169,6 +182,12 @@ mod tests {
         std::env::set_var("CAELESTIA_RECORDINGS_DIR", "/tmp/recs");
         assert_eq!(screenshots_dir(), PathBuf::from("/tmp/shots"));
         assert_eq!(recordings_dir(), PathBuf::from("/tmp/recs"));
+
+        assert!(wallpaper_path_path().ends_with("caelestia/wallpaper/path.txt"));
+        assert!(wallpaper_link_path().ends_with("caelestia/wallpaper/current"));
+        assert!(wallpaper_thumbnail_path().ends_with("caelestia/wallpaper/thumbnail.jpg"));
+        assert!(wallpapers_cache_dir().ends_with("caelestia/wallpapers"));
+
         std::env::remove_var("CAELESTIA_SCREENSHOTS_DIR");
         std::env::remove_var("CAELESTIA_RECORDINGS_DIR");
     }

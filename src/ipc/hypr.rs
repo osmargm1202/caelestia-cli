@@ -18,6 +18,10 @@ pub fn socket2_path() -> PathBuf {
     socket_base().join(".socket2.sock")
 }
 
+pub fn socket2_stream() -> Result<UnixStream> {
+    UnixStream::connect(socket2_path()).context("cannot connect to Hyprland socket2")
+}
+
 fn send(msg: &str) -> Result<String> {
     let path = socket_base().join(".socket.sock");
     let mut sock = UnixStream::connect(&path).with_context(|| {
@@ -45,7 +49,7 @@ pub fn batch(msgs: &[String]) -> Result<String> {
     send(&format!("[[BATCH]]{}", msgs.join(";")))
 }
 
-fn is_lua_config() -> bool {
+pub fn is_lua_config() -> bool {
     static CACHE: OnceLock<bool> = OnceLock::new();
     *CACHE.get_or_init(|| {
         message_json("status")
@@ -74,22 +78,54 @@ fn lua_dispatch(dispatcher: &str, args: &[String]) -> Option<String> {
             let joined = args.join(" ").replace('\\', r"\\").replace('"', "\\\"");
             Some(format!(r#"hl.dsp.exec_cmd("{joined}")"#))
         }
+        "resizewindowpixel" => {
+            let [exact, width, target] = args else {
+                return None;
+            };
+            if exact != "exact" {
+                return None;
+            }
+            let (height, address) = target.split_once(",address:")?;
+            Some(format!(
+                r#"hl.dsp.window.resize({{x = {width}, y = {height}, exact = true, window = "address:{address}"}})"#
+            ))
+        }
+        "movewindowpixel" => {
+            let [exact, x, target] = args else {
+                return None;
+            };
+            if exact != "exact" {
+                return None;
+            }
+            let (y, address) = target.split_once(",address:")?;
+            Some(format!(
+                r#"hl.dsp.window.move({{x = {x}, y = {y}, window = "address:{address}"}})"#
+            ))
+        }
+        "togglefloating" => {
+            let address = args.first()?.strip_prefix("address:")?;
+            Some(format!(
+                r#"hl.dsp.window.float({{action = "toggle", window = "address:{address}"}})"#
+            ))
+        }
         _ => None,
     }
 }
 
+pub fn format_dispatch(dispatcher: &str, args: &[String], lua_config: bool) -> String {
+    if lua_config {
+        if let Some(lua) = lua_dispatch(dispatcher, args) {
+            return format!("dispatch {lua}");
+        }
+    }
+
+    format!("dispatch {dispatcher} {}", args.join(" "))
+        .trim_end()
+        .to_string()
+}
+
 pub fn dispatch(dispatcher: &str, args: &[String]) -> Result<bool> {
-    let req = if is_lua_config() {
-        lua_dispatch(dispatcher, args)
-    } else {
-        None
-    };
-    let req = match req {
-        Some(lua) => format!("dispatch {lua}"),
-        None => format!("dispatch {dispatcher} {}", args.join(" "))
-            .trim_end()
-            .to_string(),
-    };
+    let req = format_dispatch(dispatcher, args, is_lua_config());
     Ok(message_raw(&req)? == "ok")
 }
 
@@ -116,6 +152,47 @@ mod tests {
             Some(r#"hl.dsp.exec_cmd("[workspace special:x] foo \"bar\" \\ baz")"#.to_string())
         );
         assert_eq!(lua_dispatch("workspace", &["3".into()]), None);
+
+        assert_eq!(
+            format_dispatch(
+                "resizewindowpixel",
+                &["exact".into(), "800".into(), "600,address:0xabc".into()],
+                false,
+            ),
+            "dispatch resizewindowpixel exact 800 600,address:0xabc"
+        );
+        assert_eq!(
+            format_dispatch(
+                "resizewindowpixel",
+                &["exact".into(), "800".into(), "600,address:0xabc".into()],
+                true,
+            ),
+            r#"dispatch hl.dsp.window.resize({x = 800, y = 600, exact = true, window = "address:0xabc"})"#
+        );
+        assert_eq!(
+            format_dispatch(
+                "movewindowpixel",
+                &["exact".into(), "10".into(), "20,address:0xabc".into()],
+                false,
+            ),
+            "dispatch movewindowpixel exact 10 20,address:0xabc"
+        );
+        assert_eq!(
+            format_dispatch(
+                "movewindowpixel",
+                &["exact".into(), "10".into(), "20,address:0xabc".into()],
+                true,
+            ),
+            r#"dispatch hl.dsp.window.move({x = 10, y = 20, window = "address:0xabc"})"#
+        );
+        assert_eq!(
+            format_dispatch("togglefloating", &["address:0xabc".into()], false),
+            "dispatch togglefloating address:0xabc"
+        );
+        assert_eq!(
+            format_dispatch("togglefloating", &["address:0xabc".into()], true),
+            r#"dispatch hl.dsp.window.float({action = "toggle", window = "address:0xabc"})"#
+        );
     }
 
     #[test]
@@ -127,6 +204,9 @@ mod tests {
         std::fs::create_dir_all(dir.join("hypr/testsig")).unwrap();
         let sock_path = dir.join("hypr/testsig/.socket.sock");
         let listener = UnixListener::bind(&sock_path).unwrap();
+
+        let socket2_path = dir.join("hypr/testsig/.socket2.sock");
+        let listener2 = UnixListener::bind(&socket2_path).unwrap();
 
         let handle = std::thread::spawn(move || {
             let (mut s, _) = listener.accept().unwrap();
@@ -142,5 +222,15 @@ mod tests {
         let v = message_json("monitors").unwrap();
         assert!(v[0]["focused"].as_bool().unwrap());
         handle.join().unwrap();
+
+        let event_handle = std::thread::spawn(move || {
+            let (mut s, _) = listener2.accept().unwrap();
+            s.write_all(b"openwindow>>0xabc\n").unwrap();
+        });
+        let mut stream = socket2_stream().unwrap();
+        let mut line = String::new();
+        stream.read_to_string(&mut line).unwrap();
+        assert_eq!(line, "openwindow>>0xabc\n");
+        event_handle.join().unwrap();
     }
 }
