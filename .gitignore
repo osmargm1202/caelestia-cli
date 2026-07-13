@@ -1,6 +1,3 @@
-__pycache__/
-/dist/
+/target/
 /result
-target/
-result
 .worktrees/
