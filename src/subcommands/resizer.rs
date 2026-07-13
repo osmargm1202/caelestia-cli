@@ -1,11 +1,16 @@
 #![allow(dead_code)] // Pure interfaces are consumed by the Task 5 Hyprland runtime.
 
-use anyhow::Result;
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Read};
+use std::time::{Duration, Instant};
+
+use anyhow::{bail, Result};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::cli::ResizerArgs;
+use crate::cli::{MatchTypeArg, ResizerArgs};
+use crate::ipc::hypr;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -85,6 +90,37 @@ pub fn rules_from_config(config: &Value) -> Vec<WindowRule> {
 
 pub fn load_rules() -> Vec<WindowRule> {
     rules_from_config(&crate::util::paths::get_config())
+}
+
+fn validate_user_rule(rule: &WindowRule) -> Result<()> {
+    if matches!(rule.match_type, MatchType::TitleRegex) {
+        Regex::new(&rule.name)
+            .map_err(|error| anyhow::anyhow!("invalid regex pattern {:?}: {error}", rule.name))?;
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+struct RateLimiter {
+    last_seen: HashMap<String, Instant>,
+}
+
+impl RateLimiter {
+    fn suppressed_at(&mut self, address: &str, now: Instant) -> bool {
+        if self
+            .last_seen
+            .get(address)
+            .is_some_and(|last| now.duration_since(*last) < Duration::from_secs(1))
+        {
+            return true;
+        }
+        self.last_seen.insert(address.to_owned(), now);
+        false
+    }
+
+    fn suppressed(&mut self, address: &str) -> bool {
+        self.suppressed_at(address, Instant::now())
+    }
 }
 
 pub fn matches_rule(rule: &WindowRule, title: &str, initial_title: &str) -> bool {
@@ -231,14 +267,452 @@ pub fn pip_geometry(window: WindowSize, monitor: MonitorGeometry) -> Option<PipG
     })
 }
 
-/// Task 5 supplies live Hyprland lookups and daemon execution.
-pub fn run(_args: ResizerArgs) -> Result<()> {
+fn address_with_prefix(address: &str) -> String {
+    if address.starts_with("0x") {
+        address.to_owned()
+    } else {
+        format!("0x{address}")
+    }
+}
+
+fn client_by_address(address: &str) -> Result<Option<Value>> {
+    let address = address_with_prefix(address);
+    Ok(hypr::message_json("clients")?
+        .as_array()
+        .and_then(|clients| clients.iter().find(|client| client["address"] == address))
+        .cloned())
+}
+
+fn command_resize(width: &str, height: &str, address: &str, lua: bool) -> String {
+    if lua {
+        lua_resize(width, height, address)
+    } else {
+        legacy_resize(width, height, address)
+    }
+}
+
+fn command_move(x: i64, y: i64, address: &str, lua: bool) -> String {
+    if lua {
+        lua_move(x, y, address)
+    } else {
+        legacy_move(x, y, address)
+    }
+}
+
+fn command_float(address: &str, lua: bool) -> String {
+    if lua {
+        lua_float(address)
+    } else {
+        legacy_float(address)
+    }
+}
+
+fn command_center(lua: bool) -> String {
+    if lua { lua_center() } else { legacy_center() }.to_owned()
+}
+
+fn apply_pip(address: &str, lua: bool) -> Result<()> {
+    let address = address_with_prefix(address);
+    let Some(window) = client_by_address(&address)? else {
+        return Ok(());
+    };
+    if !window["floating"].as_bool().unwrap_or(false) {
+        return Ok(());
+    }
+    let workspace_name = window.pointer("/workspace/name").and_then(Value::as_str);
+    let workspaces = hypr::message_json("workspaces")?;
+    let Some(workspace) = workspaces.as_array().and_then(|items| {
+        items
+            .iter()
+            .find(|item| item["name"].as_str() == workspace_name)
+    }) else {
+        return Ok(());
+    };
+    let monitor_id = workspace["monitorID"].as_i64();
+    let monitors = hypr::message_json("monitors")?;
+    let Some(monitor) = monitors
+        .as_array()
+        .and_then(|items| items.iter().find(|item| item["id"].as_i64() == monitor_id))
+    else {
+        return Ok(());
+    };
+    let Some(size) = window["size"].as_array() else {
+        return Ok(());
+    };
+    let Some(geometry) = pip_geometry(
+        WindowSize {
+            width: size.first().and_then(Value::as_f64).unwrap_or(0.0),
+            height: size.get(1).and_then(Value::as_f64).unwrap_or(0.0),
+        },
+        MonitorGeometry {
+            x: monitor["x"].as_f64().unwrap_or(f64::NAN),
+            y: monitor["y"].as_f64().unwrap_or(f64::NAN),
+            width: monitor["width"].as_f64().unwrap_or(0.0),
+            height: monitor["height"].as_f64().unwrap_or(0.0),
+            scale: monitor["scale"].as_f64().unwrap_or(0.0),
+        },
+    ) else {
+        return Ok(());
+    };
+    hypr::batch(&[
+        command_resize(
+            &geometry.width.to_string(),
+            &geometry.height.to_string(),
+            &address,
+            lua,
+        ),
+        command_move(geometry.x, geometry.y, &address, lua),
+    ])?;
     Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ActionStep {
+    Float,
+    Pip,
+    Resize,
+    Center,
+}
+
+fn action_plan(rule: &WindowRule, already_floating: bool) -> Vec<ActionStep> {
+    let mut steps = Vec::new();
+    if (rule.actions.contains(&Action::Float) || rule.actions.contains(&Action::Pip))
+        && !already_floating
+    {
+        steps.push(ActionStep::Float);
+    }
+    if rule.actions.contains(&Action::Pip) {
+        steps.push(ActionStep::Pip);
+        return steps;
+    }
+    steps.push(ActionStep::Resize);
+    if rule.actions.contains(&Action::Center) {
+        steps.push(ActionStep::Center);
+    }
+    steps
+}
+
+fn apply_actions(address: &str, rule: &WindowRule, lua: bool) -> Result<()> {
+    let address = address_with_prefix(address);
+    let floating = if rule.actions.contains(&Action::Float) || rule.actions.contains(&Action::Pip) {
+        client_by_address(&address)?
+            .is_some_and(|window| window["floating"].as_bool().unwrap_or(false))
+    } else {
+        false
+    };
+    let plan = action_plan(rule, floating);
+    if plan.contains(&ActionStep::Pip) {
+        if plan.contains(&ActionStep::Float) {
+            hypr::batch(&[command_float(&address, lua)])?;
+        }
+        return apply_pip(&address, lua);
+    }
+    let commands = plan
+        .into_iter()
+        .filter_map(|step| match step {
+            ActionStep::Float => Some(command_float(&address, lua)),
+            ActionStep::Resize => Some(command_resize(&rule.width, &rule.height, &address, lua)),
+            ActionStep::Center => Some(command_center(lua)),
+            ActionStep::Pip => None,
+        })
+        .collect::<Vec<_>>();
+    hypr::batch(&commands)?;
+    Ok(())
+}
+
+fn matching_rule<'a>(
+    rules: &'a [WindowRule],
+    title: &str,
+    initial: &str,
+) -> Option<&'a WindowRule> {
+    for rule in rules {
+        if matches!(rule.match_type, MatchType::TitleRegex) && Regex::new(&rule.name).is_err() {
+            crate::util::io::warn(&format!("invalid regex pattern in rule {:?}", rule.name));
+            continue;
+        }
+        if matches_rule(rule, title, initial) {
+            return Some(rule);
+        }
+    }
+    None
+}
+
+struct Resizer {
+    rules: Vec<WindowRule>,
+    limiter: RateLimiter,
+    lua: bool,
+}
+
+impl Resizer {
+    fn new() -> Self {
+        Self {
+            rules: load_rules(),
+            limiter: RateLimiter::default(),
+            lua: hypr::is_lua_config(),
+        }
+    }
+
+    fn handle_event(&mut self, event: WindowEvent) -> Result<()> {
+        let (address, title, initial) = match event {
+            WindowEvent::Open { address, title, .. } => (address, title.clone(), title),
+            WindowEvent::Title { address } => {
+                let Some(window) = client_by_address(&address)? else {
+                    return Ok(());
+                };
+                (
+                    address,
+                    window["title"].as_str().unwrap_or("").to_owned(),
+                    window["initialTitle"].as_str().unwrap_or("").to_owned(),
+                )
+            }
+        };
+        let Some(rule) = matching_rule(&self.rules, &title, &initial).cloned() else {
+            return Ok(());
+        };
+        if self.limiter.suppressed(&address) {
+            return Ok(());
+        }
+        apply_actions(&address, &rule, self.lua)
+    }
+}
+
+fn daemon_loop<R, H, W>(stream: R, mut handle: H, mut warn: W) -> Result<()>
+where
+    R: Read,
+    H: FnMut(WindowEvent) -> Result<()>,
+    W: FnMut(String),
+{
+    let mut reader = BufReader::new(stream);
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line)? == 0 {
+            bail!("Hyprland socket2 reached EOF");
+        }
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        match parse_event(line) {
+            Some(event) => {
+                if let Err(error) = handle(event) {
+                    warn(format!("failed to handle Hyprland event: {error:#}"));
+                }
+            }
+            None if line.starts_with("windowtitle") || line.starts_with("openwindow") => {
+                warn(format!("failed to parse Hyprland event: {line}"));
+            }
+            None => {}
+        }
+    }
+}
+
+fn parse_actions(actions: &str) -> Vec<Action> {
+    actions
+        .split(',')
+        .filter_map(|action| match action.trim().to_ascii_lowercase().as_str() {
+            "float" => Some(Action::Float),
+            "center" => Some(Action::Center),
+            "pip" => Some(Action::Pip),
+            _ => None,
+        })
+        .collect()
+}
+
+fn match_type(value: MatchTypeArg) -> MatchType {
+    match value {
+        MatchTypeArg::TitleContains => MatchType::TitleContains,
+        MatchTypeArg::TitleExact => MatchType::TitleExact,
+        MatchTypeArg::TitleRegex => MatchType::TitleRegex,
+        MatchTypeArg::InitialTitle => MatchType::InitialTitle,
+    }
+}
+
+fn run_rule(args: ResizerArgs, lua: bool) -> Result<()> {
+    let pattern = args
+        .pattern
+        .ok_or_else(|| anyhow::anyhow!("missing window pattern"))?;
+    if pattern.eq_ignore_ascii_case("pip") {
+        let active = hypr::message_json("activewindow")?;
+        let address = active["address"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("no active window found"))?;
+        return apply_pip(address, lua);
+    }
+    let rule = WindowRule {
+        name: pattern,
+        match_type: match_type(
+            args.match_type
+                .ok_or_else(|| anyhow::anyhow!("missing match type"))?,
+        ),
+        width: args.width.ok_or_else(|| anyhow::anyhow!("missing width"))?,
+        height: args
+            .height
+            .ok_or_else(|| anyhow::anyhow!("missing height"))?,
+        actions: parse_actions(
+            args.actions
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("missing actions"))?,
+        ),
+    };
+    validate_user_rule(&rule)?;
+    if rule.name.eq_ignore_ascii_case("active") {
+        let active = hypr::message_json("activewindow")?;
+        let address = active["address"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("no active window found"))?;
+        return apply_actions(address, &rule, lua);
+    }
+    let clients = hypr::message_json("clients")?;
+    let mut first_error = None;
+    for window in clients.as_array().into_iter().flatten() {
+        if matches_rule(
+            &rule,
+            window["title"].as_str().unwrap_or(""),
+            window["initialTitle"].as_str().unwrap_or(""),
+        ) {
+            if let Some(address) = window["address"].as_str() {
+                if let Err(error) = apply_actions(address, &rule, lua) {
+                    crate::util::io::error(&format!(
+                        "failed to apply window actions for {address}: {error:#}"
+                    ));
+                    first_error.get_or_insert(error);
+                }
+            }
+        }
+    }
+    match first_error {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+pub fn run(args: ResizerArgs) -> Result<()> {
+    if args.daemon {
+        let mut resizer = Resizer::new();
+        return daemon_loop(
+            hypr::socket2_stream()?,
+            |event| resizer.handle_event(event),
+            |warning| crate::util::io::warn(&warning),
+        );
+    }
+    if args.pattern.is_none() {
+        crate::util::io::info("Resizer daemon - use --daemon to start, 'pip' for quick pip mode, or provide pattern, match_type, width, height, and actions for active mode");
+        return Ok(());
+    }
+    let lua = hypr::is_lua_config();
+    run_rule(args, lua)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn daemon_continues_after_malformed_event() {
+        use std::io::Write;
+        use std::os::unix::net::UnixListener;
+        use std::sync::{Arc, Mutex};
+
+        let mut env = crate::test_support::EnvGuard::new();
+        let dir = std::env::temp_dir().join(format!(
+            "resizer-daemon-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let socket_dir = dir.join("hypr/testsig");
+        std::fs::create_dir_all(&socket_dir).unwrap();
+        let listener = UnixListener::bind(socket_dir.join(".socket2.sock")).unwrap();
+        env.set("XDG_RUNTIME_DIR", &dir);
+        env.set("HYPRLAND_INSTANCE_SIGNATURE", "testsig");
+
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .write_all(
+                    b"openwindow>>abc123,1,firefox,First\nopenwindow>>not-hex,broken\nwindowtitle>>deadbeef,Second\n",
+                )
+                .unwrap();
+        });
+
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let warnings = Arc::new(Mutex::new(Vec::new()));
+        let event_sink = Arc::clone(&events);
+        let warning_sink = Arc::clone(&warnings);
+        let result = daemon_loop(
+            crate::ipc::hypr::socket2_stream().unwrap(),
+            move |event| {
+                let mut events = event_sink.lock().unwrap();
+                events.push(event);
+                if events.len() == 1 {
+                    anyhow::bail!("synthetic action failure");
+                }
+                Ok(())
+            },
+            move |warning| warning_sink.lock().unwrap().push(warning),
+        );
+
+        server.join().unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(result.is_err(), "EOF must end the daemon");
+        assert_eq!(events.lock().unwrap().len(), 2);
+        assert_eq!(warnings.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn pip_action_plan_floats_when_needed_and_excludes_other_actions() {
+        let rule = WindowRule {
+            name: "pip".into(),
+            match_type: MatchType::TitleExact,
+            width: "800".into(),
+            height: "600".into(),
+            actions: vec![Action::Pip, Action::Center],
+        };
+        assert_eq!(
+            action_plan(&rule, false),
+            vec![ActionStep::Float, ActionStep::Pip]
+        );
+        assert_eq!(action_plan(&rule, true), vec![ActionStep::Pip]);
+    }
+
+    #[test]
+    fn normal_action_plan_orders_float_resize_center() {
+        let rule = WindowRule {
+            name: "x".into(),
+            match_type: MatchType::TitleExact,
+            width: "800".into(),
+            height: "600".into(),
+            actions: vec![Action::Center, Action::Float],
+        };
+        assert_eq!(
+            action_plan(&rule, false),
+            vec![ActionStep::Float, ActionStep::Resize, ActionStep::Center]
+        );
+    }
+
+    #[test]
+    fn user_regex_reports_invalid_pattern() {
+        let rule = WindowRule {
+            name: "[".into(),
+            match_type: MatchType::TitleRegex,
+            width: "800".into(),
+            height: "600".into(),
+            actions: vec![],
+        };
+        assert!(validate_user_rule(&rule)
+            .unwrap_err()
+            .to_string()
+            .contains("invalid regex pattern"));
+    }
+
+    #[test]
+    fn rate_limiter_is_per_address_and_expires_after_one_second() {
+        let start = std::time::Instant::now();
+        let mut limiter = RateLimiter::default();
+        assert!(!limiter.suppressed_at("abc", start));
+        assert!(limiter.suppressed_at("abc", start + std::time::Duration::from_millis(999)));
+        assert!(!limiter.suppressed_at("def", start + std::time::Duration::from_millis(999)));
+        assert!(!limiter.suppressed_at("abc", start + std::time::Duration::from_secs(1)));
+    }
 
     #[test]
     fn default_rules_match_python() {
