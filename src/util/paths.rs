@@ -150,16 +150,14 @@ pub fn get_config() -> Value {
 mod tests {
     use super::*;
 
-    // Both env-mutating tests are merged into one so cargo's parallel test
-    // threads (which share the process environment) cannot race each
-    // other's XDG_*/CAELESTIA_* var reads.
     #[test]
     fn xdg_dirs_respect_env_and_overrides_win() {
-        std::env::set_var("XDG_CACHE_HOME", "/tmp/xdgtest-cache");
-        std::env::set_var("XDG_CONFIG_HOME", "/tmp/xdgtest-config");
-        std::env::set_var("XDG_PICTURES_DIR", "/tmp/xdgtest-pics");
-        std::env::set_var("XDG_VIDEOS_DIR", "/tmp/xdgtest-vids");
-        std::env::set_var("XDG_STATE_HOME", "/tmp/xdgtest-state");
+        let mut env = crate::test_support::EnvGuard::new();
+        env.set("XDG_CACHE_HOME", "/tmp/xdgtest-cache");
+        env.set("XDG_CONFIG_HOME", "/tmp/xdgtest-config");
+        env.set("XDG_PICTURES_DIR", "/tmp/xdgtest-pics");
+        env.set("XDG_VIDEOS_DIR", "/tmp/xdgtest-vids");
+        env.set("XDG_STATE_HOME", "/tmp/xdgtest-state");
         assert_eq!(c_cache_dir(), PathBuf::from("/tmp/xdgtest-cache/caelestia"));
         assert_eq!(
             user_config_path(),
@@ -178,8 +176,8 @@ mod tests {
             PathBuf::from("/tmp/xdgtest-state/caelestia/record/recording.mp4")
         );
 
-        std::env::set_var("CAELESTIA_SCREENSHOTS_DIR", "/tmp/shots");
-        std::env::set_var("CAELESTIA_RECORDINGS_DIR", "/tmp/recs");
+        env.set("CAELESTIA_SCREENSHOTS_DIR", "/tmp/shots");
+        env.set("CAELESTIA_RECORDINGS_DIR", "/tmp/recs");
         assert_eq!(screenshots_dir(), PathBuf::from("/tmp/shots"));
         assert_eq!(recordings_dir(), PathBuf::from("/tmp/recs"));
 
@@ -187,8 +185,5 @@ mod tests {
         assert!(wallpaper_link_path().ends_with("caelestia/wallpaper/current"));
         assert!(wallpaper_thumbnail_path().ends_with("caelestia/wallpaper/thumbnail.jpg"));
         assert!(wallpapers_cache_dir().ends_with("caelestia/wallpapers"));
-
-        std::env::remove_var("CAELESTIA_SCREENSHOTS_DIR");
-        std::env::remove_var("CAELESTIA_RECORDINGS_DIR");
     }
 }

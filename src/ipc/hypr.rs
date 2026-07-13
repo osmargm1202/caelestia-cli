@@ -200,6 +200,7 @@ mod tests {
         use std::io::{Read, Write};
         use std::os::unix::net::UnixListener;
 
+        let mut env = crate::test_support::EnvGuard::new();
         let dir = std::env::temp_dir().join(format!("hypr-test-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("hypr/testsig")).unwrap();
         let sock_path = dir.join("hypr/testsig/.socket.sock");
@@ -217,8 +218,8 @@ mod tests {
             // connection close = EOF terminates the response
         });
 
-        std::env::set_var("XDG_RUNTIME_DIR", &dir);
-        std::env::set_var("HYPRLAND_INSTANCE_SIGNATURE", "testsig");
+        env.set("XDG_RUNTIME_DIR", &dir);
+        env.set("HYPRLAND_INSTANCE_SIGNATURE", "testsig");
         let v = message_json("monitors").unwrap();
         assert!(v[0]["focused"].as_bool().unwrap());
         handle.join().unwrap();
