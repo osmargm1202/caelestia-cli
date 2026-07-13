@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn tempdir(suffix: &str) -> PathBuf {
@@ -10,7 +10,7 @@ fn tempdir(suffix: &str) -> PathBuf {
     dir
 }
 
-fn run_caelestia(env_root: &PathBuf, args: &[&str]) -> std::process::Output {
+fn run_caelestia(env_root: &Path, args: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_caelestia"));
     cmd.args(args)
         .env("XDG_DATA_HOME", env_root.join("data"))

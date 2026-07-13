@@ -6,6 +6,28 @@ mod ipc;
 mod subcommands;
 mod util;
 
+fn main() {
+    let cli = cli::Cli::parse();
+    let result = match cli.command {
+        cli::Native::Shell(a) => subcommands::shell::run(a),
+        cli::Native::Toggle(a) => subcommands::toggle::run(a),
+        cli::Native::Screenshot(a) => subcommands::screenshot::run(a),
+        cli::Native::Record(a) => subcommands::record::run(a),
+        cli::Native::Search => subcommands::search::run(),
+        cli::Native::Clipboard(a) => subcommands::clipboard::run(a),
+        cli::Native::Emoji(a) => subcommands::emoji::run(a),
+        cli::Native::Scheme(a) => subcommands::scheme::run(a),
+        cli::Native::Wallpaper(a) => subcommands::wallpaper::run(a),
+        cli::Native::Resizer(a) => subcommands::resizer::run(a),
+        cli::Native::Golden(a) => subcommands::golden::run(a),
+    };
+
+    if let Err(e) = result {
+        util::io::error(&format!("{e:#}"));
+        std::process::exit(1);
+    }
+}
+
 #[cfg(test)]
 mod test_support {
     use std::ffi::{OsStr, OsString};
@@ -43,27 +65,5 @@ mod test_support {
                 }
             }
         }
-    }
-}
-
-fn main() {
-    let cli = cli::Cli::parse();
-    let result = match cli.command {
-        cli::Native::Shell(a) => subcommands::shell::run(a),
-        cli::Native::Toggle(a) => subcommands::toggle::run(a),
-        cli::Native::Screenshot(a) => subcommands::screenshot::run(a),
-        cli::Native::Record(a) => subcommands::record::run(a),
-        cli::Native::Search => subcommands::search::run(),
-        cli::Native::Clipboard(a) => subcommands::clipboard::run(a),
-        cli::Native::Emoji(a) => subcommands::emoji::run(a),
-        cli::Native::Scheme(a) => subcommands::scheme::run(a),
-        cli::Native::Wallpaper(a) => subcommands::wallpaper::run(a),
-        cli::Native::Resizer(a) => subcommands::resizer::run(a),
-        cli::Native::Golden(a) => subcommands::golden::run(a),
-    };
-
-    if let Err(e) = result {
-        util::io::error(&format!("{e:#}"));
-        std::process::exit(1);
     }
 }
