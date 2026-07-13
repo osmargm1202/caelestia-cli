@@ -1,14 +1,15 @@
 set -l seen '__fish_seen_subcommand_from'
 set -l has_opt '__fish_contains_opt'
 
-set -l commands shell toggle scheme screenshot record clipboard emoji-picker wallpaper resizer install update
+set -l commands shell toggle screenshot record search clipboard emoji scheme wallpaper resizer golden
 set -l not_seen "not $seen $commands"
 
 # Disable file completions
 complete -c caelestia -f
 
-# Add help for any command
+# Add top-level flags
 complete -c caelestia -s 'h' -l 'help' -d 'Show help'
+complete -c caelestia -s 'V' -l 'version' -d 'Print version'
 
 # Subcommands
 complete -c caelestia -n $not_seen -a 'shell' -d 'Start the shell or message it'
@@ -16,12 +17,12 @@ complete -c caelestia -n $not_seen -a 'toggle' -d 'Toggle a special workspace'
 complete -c caelestia -n $not_seen -a 'scheme' -d 'Manage the colour scheme'
 complete -c caelestia -n $not_seen -a 'screenshot' -d 'Take a screenshot'
 complete -c caelestia -n $not_seen -a 'record' -d 'Start a screen recording'
+complete -c caelestia -n $not_seen -a 'search' -d 'Search using a screen region'
 complete -c caelestia -n $not_seen -a 'clipboard' -d 'Open clipboard history'
 complete -c caelestia -n $not_seen -a 'emoji' -d 'Emoji/glyph utilities'
 complete -c caelestia -n $not_seen -a 'wallpaper' -d 'Manage the wallpaper'
 complete -c caelestia -n $not_seen -a 'resizer' -d 'Window resizer'
-complete -c caelestia -n $not_seen -a 'install' -d 'Install the Caelestia dotfiles'
-complete -c caelestia -n $not_seen -a 'update' -d 'Update the Caelestia dotfiles'
+complete -c caelestia -n $not_seen -a 'golden' -d 'Generate scheme JSON from an image'
 
 # Shell
 set -l commands mpris drawers wallpaper notifs
@@ -107,6 +108,7 @@ complete -c caelestia -n "$seen screenshot" -s 'f' -l 'freeze' -d 'Freeze while 
 # Record
 complete -c caelestia -n "$seen record" -s 'r' -l 'region' -d 'Capture region'
 complete -c caelestia -n "$seen record" -s 's' -l 'sound' -d 'Capture sound'
+complete -c caelestia -n "$seen record" -s 'p' -l 'pause' -d 'Pause or resume recording'
 complete -c caelestia -n "$seen record" -s 'c' -l 'clipboard' -d 'Copy recording path to clipboard'
 
 # Clipboard
@@ -128,13 +130,10 @@ complete -c caelestia -n "$seen emoji" -s 'f' -l 'fetch' -d 'Fetch emoji/glyph d
 complete -c caelestia -n "$seen resizer" -s 'd' -l 'daemon' -d 'Start in daemon mode'
 complete -c caelestia -n "$seen resizer" -a 'pip' -d 'Quick pip mode'
 complete -c caelestia -n "$seen resizer" -a 'active' -d 'Select the active window'
+complete -c caelestia -n "$seen resizer" -a 'titleContains titleExact titleRegex initialTitle' -d 'Window title match type'
 
-# Install (component flags come from the manifest, so are not completed statically)
-complete -c caelestia -n "$seen install" -l 'aur-helper' -d 'The AUR helper to use' -a 'yay paru' -r
-complete -c caelestia -n "$seen install" -l 'enable-components' -d 'List of components to enable' -r
-complete -c caelestia -n "$seen install" -l 'disable-components' -d 'List of components to disable' -r
-complete -c caelestia -n "$seen install" -l 'noconfirm' -d 'Use defaults for all prompts'
-
-# Update
-complete -c caelestia -n "$seen update" -l 'aur-helper' -d 'The AUR helper to use' -a 'yay paru' -r
-complete -c caelestia -n "$seen update" -l 'noconfirm' -d 'Use defaults for all prompts'
+# Golden
+complete -c caelestia -n "$seen golden" -l 'image' -d 'Source image' -rF
+complete -c caelestia -n "$seen golden" -l 'variant' -d 'Scheme variant' -r
+complete -c caelestia -n "$seen golden" -l 'flavour' -d 'Scheme flavour' -r
+complete -c caelestia -n "$seen golden" -l 'mode' -d 'Scheme mode' -a 'dark light' -r

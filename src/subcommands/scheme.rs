@@ -1,5 +1,4 @@
 use anyhow::Result;
-use clap::Subcommand as _Subcommand;
 use serde::Serialize;
 use std::collections::BTreeMap;
 

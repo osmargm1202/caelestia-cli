@@ -42,8 +42,6 @@
           rustfmt
           clippy
           rust-analyzer
-          uv
-          (python3.withPackages (ps: [ps.materialyoucolor ps.pillow]))
           alejandra
         ];
       };

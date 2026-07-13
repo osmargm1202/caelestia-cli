@@ -23,7 +23,7 @@ fn run_with_fake_qs(qs_dir: &Path, trace: &Path, args: &[&str]) -> std::process:
 }
 
 #[test]
-fn clipboard_delegates_to_shell_launcher_ipc() {
+fn clipboard_forwards_to_shell_launcher_ipc() {
     let tmp = tempdir();
     let qs = tmp.join("bin");
     fs::create_dir_all(&qs).unwrap();
@@ -40,7 +40,7 @@ fn clipboard_delegates_to_shell_launcher_ipc() {
 }
 
 #[test]
-fn emoji_delegates_to_shell_launcher_ipc() {
+fn emoji_forwards_to_shell_launcher_ipc() {
     let tmp = tempdir();
     let qs = tmp.join("bin");
     fs::create_dir_all(&qs).unwrap();

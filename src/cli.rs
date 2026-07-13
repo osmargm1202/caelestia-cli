@@ -1,11 +1,7 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
-#[command(
-    name = "caelestia",
-    disable_version_flag = true,
-    infer_long_args = true
-)]
+#[command(name = "caelestia", version, infer_long_args = true)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Native,
@@ -152,6 +148,30 @@ pub use crate::subcommands::wallpaper::WallpaperArgs;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn top_level_help_and_version_are_native() {
+        assert_eq!(
+            Cli::try_parse_from(["caelestia", "--help"])
+                .err()
+                .unwrap()
+                .kind(),
+            clap::error::ErrorKind::DisplayHelp
+        );
+        assert_eq!(
+            Cli::try_parse_from(["caelestia", "--version"])
+                .err()
+                .unwrap()
+                .kind(),
+            clap::error::ErrorKind::DisplayVersion
+        );
+    }
+
+    #[test]
+    fn removed_python_only_commands_are_unknown() {
+        assert!(Cli::try_parse_from(["caelestia", "install"]).is_err());
+        assert!(Cli::try_parse_from(["caelestia", "update"]).is_err());
+    }
 
     /// argparse accepts unambiguous long-option prefixes; infer_long_args
     /// on Cli propagates to subcommands so clap matches that behavior.

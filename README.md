@@ -17,22 +17,12 @@ The main control script for the Caelestia dotfiles.
 
 </details>
 
-## Rust migration (NixOS fork)
+## Rust-native CLI (NixOS fork)
 
-This fork is being migrated from Python to Rust
-(see `docs/superpowers/specs/2026-07-10-rust-migration-design.md`).
-
-The `caelestia` binary is Rust. Migration status:
-
-- Native Rust: `shell`, `toggle`, `screenshot`, `record`, and `search`.
-- Owned by the shell launcher: `clipboard` and `emoji`; their CLI commands
-  fail with a pointer to the corresponding launcher UI.
-- Delegated transparently to `python-ref/`: `scheme`, `wallpaper`, `resizer`,
-  `install`, `update`, top-level flags, and invocation without a subcommand.
-
-Behavior and CLI arguments remain compatible with the Python reference.
-`install` and `update` are Arch-specific and will become NixOS stubs when the
-Python backend is removed; dependencies are managed by the flake.
+This fork provides a fully Rust-native `caelestia` binary. All supported
+commands—including `scheme`, `wallpaper`, and `resizer`—parse and run natively.
+Use `caelestia --help` to inspect the command surface. Package installation and
+updates are managed declaratively through Nix rather than CLI subcommands.
 
 ### Runtime dependencies
 
@@ -43,30 +33,13 @@ caelestia-shell via the `with-shell` package).
 
 ## Installation
 
-### Arch linux
+### NixOS source derivation
 
-The CLI is available from the AUR as `caelestia-cli`. You can install it with an AUR helper
-like [`yay`](https://github.com/Jguer/yay) or manually downloading the PKGBUILD and running `makepkg -si`.
-
-A package following the latest commit also exists as `caelestia-cli-git`. This is bleeding edge
-and likely to be unstable/have bugs. Regular users are recommended to use the stable package
-(`caelestia-cli`).
-
-To install this fork's CLI, you can use the `pkgit` package manager (available on the AUR as `pkgit-git`):
+Enable the project Cachix cache, then run the source derivation directly:
 
 ```sh
-pkgit -i https://github.com/dim-ghub/caelestia-cli
-```
-
-> [!TIP]
-> You can also use `pkgit -qi https://github.com/dim-ghub/caelestia-cli` for a quiet installation.
-
-### Nix
-
-You can run the CLI directly via `nix run`:
-
-```sh
-nix run github:caelestia-dots/cli
+cachix use caelestia
+nix run github:osmargm1202/caelestia-cli
 ```
 
 Or add it to your system configuration:
@@ -97,33 +70,6 @@ or a devshell. The CLI can then be used via the `caelestia` command.
 For home-manager, you can also use the Caelestia's home manager module (explained in
 [configuring](https://github.com/caelestia-dots/shell?tab=readme-ov-file#home-manager-module)) that
 installs and configures the shell and the CLI.
-
-### Manual installation
-
-Install all [dependencies](#dependencies), then install
-[`python-build`](https://github.com/pypa/build),
-[`python-installer`](https://github.com/pypa/installer),
-[`python-hatch`](https://github.com/pypa/hatch) and
-[`python-hatch-vcs`](https://github.com/ofek/hatch-vcs).
-
-e.g. via an AUR helper (yay)
-
-```sh
-yay -S libnotify swappy grim dart-sass wl-clipboard slurp gpu-screen-recorder glib2 cliphist fuzzel python-build python-installer python-hatch python-hatch-vcs
-```
-
-Now, clone the repo, `cd` into it, build the wheel via `python -m build --wheel`
-and install it via `python -m installer dist/*.whl`. Then, to install the `fish`
-completions, copy the `completions/caelestia.fish` file to
-`/usr/share/fish/vendor_completions.d/caelestia.fish`.
-
-```sh
-git clone https://github.com/caelestia-dots/cli.git
-cd cli
-python -m build --wheel
-sudo python -m installer dist/*.whl
-sudo cp completions/caelestia.fish /usr/share/fish/vendor_completions.d/caelestia.fish
-```
 
 ### Additional steps
 
@@ -168,32 +114,21 @@ sudo chmod 440 /etc/sudoers.d/caelestia-chromium
 
 All subcommands/options can be explored via the help flag.
 
-```
-$ caelestia -h
-usage: caelestia [-h] [-v] COMMAND ...
+```text
+$ caelestia --help
+Usage: caelestia <COMMAND>
 
-Main control script for the Caelestia dotfiles
-
-options:
-  -h, --help     show this help message and exit
-  -v, --version  print the current version
-
-subcommands:
-  valid subcommands
-
-  COMMAND        the subcommand to run
-    shell        start or message the shell
-    toggle       toggle a special workspace
-    scheme       manage the colour scheme
-    search       search using a screen region
-    screenshot   take a screenshot
-    record       start a screen recording
-    clipboard    open clipboard history
-    emoji        emoji/glyph utilities
-    wallpaper    manage the wallpaper
-    resizer      window resizer daemon
-    install      install the Caelestia dotfiles
-    update       update the Caelestia dotfiles
+Commands:
+  shell       Start or message the shell
+  toggle      Toggle a special workspace
+  screenshot  Take a screenshot
+  record      Start a screen recording
+  search      Search using a screen region
+  clipboard   Open clipboard history
+  emoji       Emoji/glyph utilities
+  scheme      Manage the colour scheme
+  wallpaper   Inspect or change the wallpaper
+  resizer     Resize matching windows or run the resizer daemon
 ```
 
 ### User templates

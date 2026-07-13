@@ -22,10 +22,10 @@ fn run_caelestia(env_root: &PathBuf, args: &[&str]) -> std::process::Output {
 #[test]
 fn preview_emits_single_json_with_requested_variant() {
     let root = tempdir("json");
-    // Surface the shipped scheme data so the test does not depend on the host.
+    // Surface the scheme fixtures so the test does not depend on the host.
     let ship = std::env::current_dir()
         .unwrap()
-        .join("python-ref/src/caelestia/data/schemes");
+        .join("tests/fixtures/schemes");
     let scheme_dest = root.join("data/caelestia/schemes");
     std::fs::create_dir_all(scheme_dest.parent().unwrap()).unwrap();
     let _ = std::fs::remove_dir_all(&scheme_dest);
@@ -90,7 +90,7 @@ fn preview_does_not_spawn_user_visible_state_tools() {
     // `scheme_data_dir()` resolves to `$XDG_DATA_HOME/caelestia/schemes`.
     let ship = std::env::current_dir()
         .unwrap()
-        .join("python-ref/src/caelestia/data/schemes");
+        .join("tests/fixtures/schemes");
     let scheme_dest = root.join("data/caelestia/schemes");
     std::fs::create_dir_all(scheme_dest.parent().unwrap()).unwrap();
     let _ = std::fs::remove_dir_all(&scheme_dest);
