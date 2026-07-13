@@ -7,3 +7,4 @@ pub mod screenshot;
 pub mod search;
 pub mod shell;
 pub mod toggle;
+pub mod wallpaper;

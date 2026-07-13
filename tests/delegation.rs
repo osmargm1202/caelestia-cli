@@ -6,14 +6,14 @@ use std::process::Command;
 #[test]
 fn delegates_full_argv_to_python_backend() {
     let out = Command::new(env!("CARGO_BIN_EXE_caelestia"))
-        .args(["wallpaper", "list", "-n"])
+        .args(["resizer", "list", "-n"])
         .env("CAELESTIA_PYTHON", "echo")
         .output()
         .expect("failed to run caelestia binary");
 
     assert!(out.status.success());
     let stdout = String::from_utf8(out.stdout).unwrap();
-    assert_eq!(stdout.trim(), "-m caelestia wallpaper list -n");
+    assert_eq!(stdout.trim(), "-m caelestia resizer list -n");
 }
 
 #[test]

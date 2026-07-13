@@ -205,7 +205,7 @@ fn set(opts: SetOptions) -> Result<()> {
         scheme.flavour = flavour;
         scheme.mode = mode;
         scheme.colours = crate::core::scheme::read_colours_from_file(&scheme.colours_path());
-        scheme.save()?;
+        crate::core::scheme::apply_scheme(&scheme)?;
         println!("switched scheme to {scheme}");
         return Ok(());
     }
@@ -222,7 +222,7 @@ fn set(opts: SetOptions) -> Result<()> {
         scheme.variant = variant;
     }
     scheme.colours = crate::core::scheme::read_colours_from_file(&scheme.colours_path());
-    scheme.save()?;
+    crate::core::scheme::apply_scheme(&scheme)?;
     if opts.notify {
         let _ = crate::util::notify::notify(&[
             "Scheme updated",

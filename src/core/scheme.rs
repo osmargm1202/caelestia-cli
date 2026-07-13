@@ -148,6 +148,12 @@ impl Scheme {
     }
 }
 
+/// Persist the selected scheme through the native application boundary.
+/// Additional theme writers can attach here without duplicating command logic.
+pub fn apply_scheme(scheme: &Scheme) -> Result<()> {
+    scheme.save()
+}
+
 pub fn read_colours_from_file(path: &Path) -> HashMap<String, String> {
     let Ok(text) = std::fs::read_to_string(path) else {
         return HashMap::new();

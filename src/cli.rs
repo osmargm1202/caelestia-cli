@@ -29,6 +29,8 @@ pub enum Native {
     Emoji(EmojiArgs),
     /// manage the colour scheme
     Scheme(SchemeActionArgs),
+    /// inspect or change the wallpaper
+    Wallpaper(WallpaperArgs),
     /// generate a colour scheme JSON from an image (used by golden parity tests)
     Golden(GoldenArgs),
 }
@@ -116,6 +118,7 @@ pub struct GoldenArgs {
 }
 
 pub use crate::subcommands::scheme::SchemeActionArgs;
+pub use crate::subcommands::wallpaper::WallpaperArgs;
 
 #[cfg(test)]
 mod tests {
@@ -149,5 +152,59 @@ mod tests {
     #[test]
     fn ambiguous_long_flag_prefix_errors() {
         assert!(Cli::try_parse_from(["caelestia", "shell", "--l"]).is_err());
+    }
+
+    #[test]
+    fn wallpaper_file_parses() {
+        let cli = Cli::try_parse_from(["caelestia", "wallpaper", "--file", "/tmp/a.png"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Native::Wallpaper(WallpaperArgs { file: Some(path), .. }) if path == "/tmp/a.png"
+        ));
+    }
+
+    #[test]
+    fn wallpaper_optional_paths_and_short_flags_parse() {
+        let cli = Cli::try_parse_from(["caelestia", "wallpaper", "-p"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Native::Wallpaper(WallpaperArgs { print: Some(path), .. }) if path.is_empty()
+        ));
+        let cli = Cli::try_parse_from(["caelestia", "wallpaper", "-r", "-n", "-N"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Native::Wallpaper(WallpaperArgs {
+                random: Some(path),
+                no_filter: true,
+                no_smart: true,
+                threshold,
+                ..
+            }) if path.is_empty() && threshold == 0.8
+        ));
+    }
+
+    #[test]
+    fn wallpaper_random_flags_parse() {
+        let cli = Cli::try_parse_from([
+            "caelestia",
+            "wallpaper",
+            "--random",
+            "/walls",
+            "--no-filter",
+            "--threshold",
+            "0.8",
+            "--no-smart",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Native::Wallpaper(WallpaperArgs {
+                random: Some(path),
+                no_filter: true,
+                threshold,
+                no_smart: true,
+                ..
+            }) if path == "/walls" && threshold == 0.8
+        ));
     }
 }
