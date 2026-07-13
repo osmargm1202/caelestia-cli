@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -275,11 +275,18 @@ fn address_with_prefix(address: &str) -> String {
     }
 }
 
+fn clients_array(value: &Value) -> Result<&Vec<Value>> {
+    value
+        .as_array()
+        .context("invalid Hyprland clients response: expected JSON array")
+}
+
 fn client_by_address(address: &str) -> Result<Option<Value>> {
     let address = address_with_prefix(address);
-    Ok(hypr::message_json("clients")?
-        .as_array()
-        .and_then(|clients| clients.iter().find(|client| client["address"] == address))
+    let response = hypr::message_json("clients")?;
+    Ok(clients_array(&response)?
+        .iter()
+        .find(|client| client["address"] == address)
         .cloned())
 }
 
@@ -307,8 +314,14 @@ fn command_float(address: &str, lua: bool) -> String {
     }
 }
 
-fn command_center(lua: bool) -> String {
-    if lua { lua_center() } else { legacy_center() }.to_owned()
+fn command_center(address: &str, target: bool, lua: bool) -> String {
+    if lua && target {
+        format!("dispatch hl.dsp.window.center({{window = \"address:{address}\"}})")
+    } else if lua {
+        lua_center().to_owned()
+    } else {
+        legacy_center().to_owned()
+    }
 }
 
 fn apply_pip(address: &str, lua: bool) -> Result<()> {
@@ -392,7 +405,7 @@ fn action_plan(rule: &WindowRule, already_floating: bool) -> Vec<ActionStep> {
     steps
 }
 
-fn apply_actions(address: &str, rule: &WindowRule, lua: bool) -> Result<()> {
+fn apply_actions(address: &str, rule: &WindowRule, lua: bool, target_center: bool) -> Result<()> {
     let address = address_with_prefix(address);
     let floating = if rule.actions.contains(&Action::Float) || rule.actions.contains(&Action::Pip) {
         client_by_address(&address)?
@@ -412,7 +425,7 @@ fn apply_actions(address: &str, rule: &WindowRule, lua: bool) -> Result<()> {
         .filter_map(|step| match step {
             ActionStep::Float => Some(command_float(&address, lua)),
             ActionStep::Resize => Some(command_resize(&rule.width, &rule.height, &address, lua)),
-            ActionStep::Center => Some(command_center(lua)),
+            ActionStep::Center => Some(command_center(&address, target_center, lua)),
             ActionStep::Pip => None,
         })
         .collect::<Vec<_>>();
@@ -472,7 +485,7 @@ impl Resizer {
         if self.limiter.suppressed(&address) {
             return Ok(());
         }
-        apply_actions(&address, &rule, self.lua)
+        apply_actions(&address, &rule, self.lua, false)
     }
 }
 
@@ -560,18 +573,18 @@ fn run_rule(args: ResizerArgs, lua: bool) -> Result<()> {
         let address = active["address"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("no active window found"))?;
-        return apply_actions(address, &rule, lua);
+        return apply_actions(address, &rule, lua, false);
     }
     let clients = hypr::message_json("clients")?;
     let mut first_error = None;
-    for window in clients.as_array().into_iter().flatten() {
+    for window in clients_array(&clients)? {
         if matches_rule(
             &rule,
             window["title"].as_str().unwrap_or(""),
             window["initialTitle"].as_str().unwrap_or(""),
         ) {
             if let Some(address) = window["address"].as_str() {
-                if let Err(error) = apply_actions(address, &rule, lua) {
+                if let Err(error) = apply_actions(address, &rule, lua, true) {
                     crate::util::io::error(&format!(
                         "failed to apply window actions for {address}: {error:#}"
                     ));
@@ -837,6 +850,18 @@ mod tests {
             "dispatch togglefloating address:0xabc"
         );
         assert_eq!(legacy_center(), "dispatch centerwindow");
+        assert_eq!(
+            command_center("0xabc", true, true),
+            "dispatch hl.dsp.window.center({window = \"address:0xabc\"})"
+        );
+        assert_eq!(
+            command_center("0xabc", true, false),
+            "dispatch centerwindow"
+        );
+        assert_eq!(
+            command_center("0xabc", false, true),
+            "dispatch hl.dsp.window.center()"
+        );
         assert_eq!(lua_resize("800", "600", "0xabc"), "dispatch hl.dsp.window.resize({x = 800, y = 600, exact = true, window = \"address:0xabc\"})");
         assert_eq!(
             lua_move(10, 20, "0xabc"),
@@ -847,6 +872,107 @@ mod tests {
             "dispatch hl.dsp.window.float({action = \"toggle\", window = \"address:0xabc\"})"
         );
         assert_eq!(lua_center(), "dispatch hl.dsp.window.center()");
+    }
+
+    #[test]
+    fn malformed_client_lookup_is_an_error() {
+        let error = clients_array(&serde_json::json!({"not": "clients"}))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("clients"));
+        assert!(error.contains("array"));
+    }
+
+    #[test]
+    fn active_and_custom_commands_report_malformed_hyprland_json() {
+        use std::io::{Read, Write};
+        use std::os::unix::net::UnixListener;
+
+        let mut env = crate::test_support::EnvGuard::new();
+        let dir = std::env::temp_dir().join(format!(
+            "rmj-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(dir.join("hypr/testsig")).unwrap();
+        let listener = UnixListener::bind(dir.join("hypr/testsig/.socket.sock")).unwrap();
+        env.set("XDG_RUNTIME_DIR", &dir);
+        env.set("HYPRLAND_INSTANCE_SIGNATURE", "testsig");
+
+        let server = std::thread::spawn(move || {
+            for expected in [b"j/activewindow".as_slice(), b"j/clients".as_slice()] {
+                let (mut socket, _) = listener.accept().unwrap();
+                let mut request = [0; 64];
+                let length = socket.read(&mut request).unwrap();
+                assert_eq!(&request[..length], expected);
+                socket.write_all(b"{malformed").unwrap();
+            }
+        });
+
+        let args = |pattern: &str| ResizerArgs {
+            daemon: false,
+            pattern: Some(pattern.into()),
+            match_type: Some(MatchTypeArg::TitleExact),
+            width: Some("800".into()),
+            height: Some("600".into()),
+            actions: Some("center".into()),
+        };
+        let active_error = run_rule(args("active"), false).unwrap_err().to_string();
+        assert!(active_error.contains("invalid JSON from hyprland for \"activewindow\""));
+        let custom_error = run_rule(args("match"), false).unwrap_err().to_string();
+        assert!(custom_error.contains("invalid JSON from hyprland for \"clients\""));
+
+        server.join().unwrap();
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn daemon_warns_and_continues_after_lookup_json_error() {
+        use std::io::{Read, Write};
+        use std::os::unix::net::UnixListener;
+
+        let mut env = crate::test_support::EnvGuard::new();
+        let dir = std::env::temp_dir().join(format!(
+            "rdj-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(dir.join("hypr/testsig")).unwrap();
+        let listener = UnixListener::bind(dir.join("hypr/testsig/.socket.sock")).unwrap();
+        env.set("XDG_RUNTIME_DIR", &dir);
+        env.set("HYPRLAND_INSTANCE_SIGNATURE", "testsig");
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0; 64];
+            let length = socket.read(&mut request).unwrap();
+            assert_eq!(&request[..length], b"j/clients");
+            socket.write_all(b"{malformed").unwrap();
+        });
+
+        let rule = WindowRule {
+            name: "match".into(),
+            match_type: MatchType::TitleExact,
+            width: "800".into(),
+            height: "600".into(),
+            actions: vec![Action::Center],
+        };
+        let mut resizer = Resizer {
+            rules: vec![rule],
+            limiter: RateLimiter::default(),
+            lua: false,
+        };
+        let mut warnings = Vec::new();
+        let result = daemon_loop(
+            "windowtitle>>abc,title\nignored>>event\n".as_bytes(),
+            |event| resizer.handle_event(event),
+            |warning| warnings.push(warning),
+        );
+        assert!(result.is_err(), "EOF must end daemon");
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("invalid JSON from hyprland for \"clients\""));
+
+        server.join().unwrap();
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
