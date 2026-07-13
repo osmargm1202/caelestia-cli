@@ -1,7 +1,9 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct WallpaperArgs {
@@ -209,6 +211,132 @@ fn generate_thumbnail(source: &Path, thumbnail: &Path) -> Result<()> {
         .with_context(|| format!("writing thumbnail {}", thumbnail.display()))
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct SmartOptions {
+    variant: String,
+    mode: String,
+}
+
+fn colourfulness_variant(image: &image::RgbImage) -> &'static str {
+    let count = f64::from(image.width()) * f64::from(image.height());
+    if count == 0.0 {
+        return "neutral";
+    }
+    let (rg, yb): (Vec<_>, Vec<_>) = image
+        .pixels()
+        .map(|pixel| {
+            let [r, g, b] = pixel.0.map(f64::from);
+            ((r - g).abs(), (0.5 * (r + g) - b).abs())
+        })
+        .unzip();
+    let mean = |values: &[f64]| values.iter().sum::<f64>() / count;
+    let mean_rg = mean(&rg);
+    let mean_yb = mean(&yb);
+    let stddev = |values: &[f64], average: f64| {
+        (values
+            .iter()
+            .map(|value| (value - average).powi(2))
+            .sum::<f64>()
+            / count)
+            .sqrt()
+    };
+    let colourfulness = (stddev(&rg, mean_rg).powi(2) + stddev(&yb, mean_yb).powi(2)).sqrt()
+        + 0.3 * (mean_rg.powi(2) + mean_yb.powi(2)).sqrt();
+    if colourfulness < 10.0 {
+        "neutral"
+    } else if colourfulness < 20.0 {
+        "content"
+    } else {
+        "tonalspot"
+    }
+}
+
+fn smart_options(thumbnail: &Path, cache: &Path) -> Result<SmartOptions> {
+    let options_path = cache.join("smart.json");
+    if let Ok(text) = std::fs::read_to_string(&options_path) {
+        if let Ok(options) = serde_json::from_str(&text) {
+            return Ok(options);
+        }
+    }
+
+    let image = image::open(thumbnail)
+        .with_context(|| format!("opening thumbnail {}", thumbnail.display()))?
+        .to_rgb8();
+    let variant = colourfulness_variant(&image).to_owned();
+    let average = image::DynamicImage::ImageRgb8(image)
+        .resize(1, 1, image::imageops::FilterType::Lanczos3)
+        .to_rgb8();
+    let [red, green, blue] = average.get_pixel(0, 0).0;
+    let tone = <material_colors::hct::Hct as From<material_colors::color::Argb>>::from(
+        material_colors::color::Argb {
+            alpha: 255,
+            red,
+            green,
+            blue,
+        },
+    )
+    .get_tone();
+    let options = SmartOptions {
+        variant,
+        mode: if tone > 60.0 { "light" } else { "dark" }.to_owned(),
+    };
+    std::fs::create_dir_all(cache)?;
+    std::fs::write(&options_path, serde_json::to_string(&options)?)
+        .with_context(|| format!("writing smart wallpaper cache {}", options_path.display()))?;
+    Ok(options)
+}
+
+fn post_hook_env(
+    wall: &Path,
+    thumbnail: &Path,
+    scheme: &crate::core::scheme::Scheme,
+) -> Result<BTreeMap<String, String>> {
+    Ok(BTreeMap::from([
+        ("WALLPAPER_PATH".into(), wall.display().to_string()),
+        ("SCHEME_NAME".into(), scheme.name.clone()),
+        ("SCHEME_FLAVOUR".into(), scheme.flavour.clone()),
+        ("SCHEME_MODE".into(), scheme.mode.clone()),
+        ("SCHEME_VARIANT".into(), scheme.variant.clone()),
+        (
+            "SCHEME_COLOURS".into(),
+            serde_json::to_string(&scheme.colours).context("serialising post-hook colours")?,
+        ),
+        ("THUMBNAIL_PATH".into(), thumbnail.display().to_string()),
+    ]))
+}
+
+fn execute_post_hook(
+    hook: &str,
+    wall: &Path,
+    thumbnail: &Path,
+    scheme: &crate::core::scheme::Scheme,
+) -> Result<()> {
+    Command::new("sh")
+        .arg("-c")
+        .arg(hook)
+        .envs(post_hook_env(wall, thumbnail, scheme)?)
+        .stderr(Stdio::null())
+        .status()
+        .with_context(|| format!("spawning wallpaper postHook: {hook}"))?;
+    Ok(())
+}
+
+fn run_post_hook(
+    wall: &Path,
+    thumbnail: &Path,
+    scheme: &crate::core::scheme::Scheme,
+) -> Result<()> {
+    let config = crate::util::paths::get_config();
+    let Some(hook) = config
+        .get("wallpaper")
+        .and_then(|wallpaper| wallpaper.get("postHook"))
+        .and_then(serde_json::Value::as_str)
+    else {
+        return Ok(());
+    };
+    execute_post_hook(hook, wall, thumbnail, scheme)
+}
+
 fn palette_scheme(wall: &Path, no_smart: bool) -> Result<crate::core::scheme::Scheme> {
     let canonical = canonical_wallpaper(wall)?;
     let cache_root = crate::util::paths::wallpapers_cache_dir();
@@ -225,9 +353,11 @@ fn palette_scheme(wall: &Path, no_smart: bool) -> Result<crate::core::scheme::Sc
         variant: current.variant,
         colours: Default::default(),
     };
-    // Smart mode/variant inference and postHook belong to Task 3. `--no-smart`
-    // is accepted now so this command's stable CLI does not change later.
-    let _ = no_smart;
+    if !no_smart {
+        let options = smart_options(&thumbnail, &cache)?;
+        scheme.mode = options.mode;
+        scheme.variant = options.variant;
+    }
     scheme.colours = crate::core::material::get_colours_for_image(
         &thumbnail,
         &scheme.name,
@@ -311,8 +441,11 @@ fn set_wallpaper(wall: &Path, no_smart: bool) -> Result<()> {
 
     let mut scheme = crate::core::scheme::Scheme::load()?;
     if scheme.name == "dynamic" {
-        // Task 3 will infer smart mode/variant here when `no_smart` is false.
-        let _ = no_smart;
+        if !no_smart {
+            let options = smart_options(&thumbnail, thumbnail.parent().expect("thumbnail cache"))?;
+            scheme.mode = options.mode;
+            scheme.variant = options.variant;
+        }
         scheme.colours = crate::core::material::get_colours_for_image(
             &thumbnail,
             &scheme.name,
@@ -326,7 +459,8 @@ fn set_wallpaper(wall: &Path, no_smart: bool) -> Result<()> {
     } else {
         scheme.colours = crate::core::scheme::read_colours_from_file(&scheme.colours_path());
     }
-    crate::core::scheme::apply_scheme(&scheme)
+    crate::core::scheme::apply_scheme(&scheme)?;
+    run_post_hook(&canonical, &thumbnail, &scheme)
 }
 
 fn monitor_filter_size() -> Result<(u32, u32)> {
@@ -396,6 +530,126 @@ mod tests {
         image::RgbImage::from_pixel(width, height, image::Rgb([30, 60, 90]))
             .save(path)
             .unwrap();
+    }
+
+    #[test]
+    fn smart_options_write_cache_and_reuse_valid_json() {
+        let root = temp_dir("smart-cache");
+        let thumbnail = root.join("thumbnail.png");
+        image::RgbImage::from_pixel(2, 2, image::Rgb([245, 245, 245]))
+            .save(&thumbnail)
+            .unwrap();
+
+        let calculated = smart_options(&thumbnail, &root).unwrap();
+        assert_eq!(calculated.variant, "neutral");
+        assert_eq!(calculated.mode, "light");
+        let cache_path = root.join("smart.json");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(
+                &std::fs::read_to_string(&cache_path).unwrap()
+            )
+            .unwrap(),
+            serde_json::json!({ "variant": "neutral", "mode": "light" })
+        );
+
+        std::fs::write(&cache_path, r#"{"variant":"content","mode":"dark"}"#).unwrap();
+        let cached = smart_options(&root.join("missing.png"), &root).unwrap();
+        assert_eq!(cached.variant, "content");
+        assert_eq!(cached.mode, "dark");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn smart_options_recompute_malformed_cache() {
+        let root = temp_dir("smart-malformed");
+        let thumbnail = root.join("thumbnail.png");
+        image::RgbImage::from_pixel(1, 1, image::Rgb([0, 0, 0]))
+            .save(&thumbnail)
+            .unwrap();
+        std::fs::write(root.join("smart.json"), "not json").unwrap();
+
+        let options = smart_options(&thumbnail, &root).unwrap();
+
+        assert_eq!(options.variant, "neutral");
+        assert_eq!(options.mode, "dark");
+        assert!(serde_json::from_str::<serde_json::Value>(
+            &std::fs::read_to_string(root.join("smart.json")).unwrap()
+        )
+        .is_ok());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn smart_variant_matches_python_colourfulness_thresholds() {
+        let neutral = image::RgbImage::from_pixel(1, 1, image::Rgb([20, 20, 20]));
+        let content = image::RgbImage::from_pixel(1, 1, image::Rgb([50, 0, 0]));
+        let tonalspot = image::RgbImage::from_pixel(1, 1, image::Rgb([255, 0, 0]));
+
+        assert_eq!(colourfulness_variant(&neutral), "neutral");
+        assert_eq!(colourfulness_variant(&content), "content");
+        assert_eq!(colourfulness_variant(&tonalspot), "tonalspot");
+    }
+
+    #[test]
+    fn post_hook_environment_matches_python_reference() {
+        let wall = Path::new("/walls/current.png");
+        let thumbnail = Path::new("/cache/thumbnail.jpg");
+        let scheme = crate::core::scheme::Scheme {
+            name: "dynamic".into(),
+            flavour: "mocha".into(),
+            mode: "light".into(),
+            variant: "neutral".into(),
+            colours: [("primary".into(), "#abcdef".into())].into(),
+        };
+
+        let env = post_hook_env(wall, thumbnail, &scheme).unwrap();
+
+        assert_eq!(env.get("WALLPAPER_PATH"), Some(&wall.display().to_string()));
+        assert_eq!(
+            env.get("THUMBNAIL_PATH"),
+            Some(&thumbnail.display().to_string())
+        );
+        assert_eq!(env.get("SCHEME_NAME").map(String::as_str), Some("dynamic"));
+        assert_eq!(env.get("SCHEME_FLAVOUR").map(String::as_str), Some("mocha"));
+        assert_eq!(env.get("SCHEME_MODE").map(String::as_str), Some("light"));
+        assert_eq!(
+            env.get("SCHEME_VARIANT").map(String::as_str),
+            Some("neutral")
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&env["SCHEME_COLOURS"]).unwrap(),
+            serde_json::json!({ "primary": "#abcdef" })
+        );
+    }
+
+    #[test]
+    fn post_hook_ignores_nonzero_exit_and_supplements_process_environment() {
+        let root = temp_dir("post-hook");
+        let output = root.join("hook-output");
+        let scheme = crate::core::scheme::Scheme {
+            name: "dynamic".into(),
+            flavour: "mocha".into(),
+            mode: "dark".into(),
+            variant: "content".into(),
+            colours: Default::default(),
+        };
+        let hook = format!(
+            "printf '%s|%s' \"$WALLPAPER_PATH\" \"$PATH\" > '{}'; exit 7",
+            output.display()
+        );
+
+        execute_post_hook(
+            &hook,
+            Path::new("/walls/current.png"),
+            Path::new("/cache/thumbnail.jpg"),
+            &scheme,
+        )
+        .unwrap();
+
+        let written = std::fs::read_to_string(&output).unwrap();
+        assert!(written.starts_with("/walls/current.png|"));
+        assert!(written.len() > "/walls/current.png|".len());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
