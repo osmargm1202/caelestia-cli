@@ -196,7 +196,18 @@ fn source_for_palette(wall: &Path, cache: &Path) -> Result<PathBuf> {
 
 fn generate_thumbnail(source: &Path, thumbnail: &Path) -> Result<()> {
     if thumbnail.exists() {
-        return Ok(());
+        let valid = image::open(thumbnail).is_ok_and(|image| {
+            image.width() > 0
+                && image.height() > 0
+                && image.width() <= 128
+                && image.height() <= 128
+                && (image.width() == 128 || image.height() == 128)
+        });
+        if valid {
+            return Ok(());
+        }
+        std::fs::remove_file(thumbnail)
+            .with_context(|| format!("removing invalid thumbnail {}", thumbnail.display()))?;
     }
     let image = image::open(source)
         .with_context(|| format!("opening wallpaper image {}", source.display()))?;
@@ -206,9 +217,23 @@ fn generate_thumbnail(source: &Path, thumbnail: &Path) -> Result<()> {
     if let Some(parent) = thumbnail.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    resized
-        .save_with_format(thumbnail, image::ImageFormat::Jpeg)
-        .with_context(|| format!("writing thumbnail {}", thumbnail.display()))
+    let temporary = thumbnail.with_extension(format!(
+        "jpg.tmp-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    ));
+    if let Err(error) = resized.save_with_format(&temporary, image::ImageFormat::Jpeg) {
+        let _ = std::fs::remove_file(&temporary);
+        return Err(error).with_context(|| format!("writing thumbnail {}", thumbnail.display()));
+    }
+    if let Err(error) = std::fs::rename(&temporary, thumbnail) {
+        let _ = std::fs::remove_file(&temporary);
+        return Err(error).with_context(|| format!("installing thumbnail {}", thumbnail.display()));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -677,6 +702,20 @@ mod tests {
             std::fs::read(actual).unwrap(),
             std::fs::read(expected).unwrap()
         );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn corrupt_cached_thumbnail_is_replaced_with_valid_image() {
+        let root = temp_dir("corrupt-thumbnail");
+        let source = root.join("source.png");
+        let thumbnail = root.join("thumbnail.jpg");
+        save_image(&source, 160, 90);
+        std::fs::write(&thumbnail, b"not an image").unwrap();
+
+        generate_thumbnail(&source, &thumbnail).unwrap();
+
+        assert_eq!(image::image_dimensions(&thumbnail).unwrap(), (128, 72));
         std::fs::remove_dir_all(root).unwrap();
     }
 
