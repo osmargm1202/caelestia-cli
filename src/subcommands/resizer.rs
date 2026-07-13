@@ -182,22 +182,53 @@ pub struct PipGeometry {
     pub y: i64,
 }
 
-pub fn pip_geometry(window: WindowSize, monitor: MonitorGeometry) -> PipGeometry {
+pub fn pip_geometry(window: WindowSize, monitor: MonitorGeometry) -> Option<PipGeometry> {
+    if !window.width.is_finite()
+        || window.width <= 0.0
+        || !window.height.is_finite()
+        || window.height <= 0.0
+        || !monitor.x.is_finite()
+        || !monitor.y.is_finite()
+        || !monitor.width.is_finite()
+        || monitor.width <= 0.0
+        || !monitor.height.is_finite()
+        || monitor.height <= 0.0
+        || !monitor.scale.is_finite()
+        || monitor.scale <= 0.0
+    {
+        return None;
+    }
+
     let monitor_height = monitor.height / monitor.scale;
     let monitor_width = monitor.width / monitor.scale;
     let scale_factor = monitor_height / 4.0 / window.height;
-    let width = (window.width * scale_factor) as i64;
-    let height = (window.height * scale_factor) as i64;
-    let width = width.max(200);
-    let height = height.max(150);
+    let scaled_width = window.width * scale_factor;
+    let scaled_height = window.height * scale_factor;
     let offset = monitor_width.min(monitor_height) * 0.03;
+    if !monitor_height.is_finite()
+        || !monitor_width.is_finite()
+        || !scale_factor.is_finite()
+        || !scaled_width.is_finite()
+        || !scaled_height.is_finite()
+        || !offset.is_finite()
+    {
+        return None;
+    }
 
-    PipGeometry {
+    let width = (scaled_width as i64).max(200);
+    let height = (scaled_height as i64).max(150);
+    let x = monitor.x + monitor_width - width as f64 - offset;
+    let y = monitor.y + monitor_height - height as f64 - offset;
+    if !x.is_finite() || !y.is_finite() {
+        return None;
+    }
+
+    Some(PipGeometry {
         width,
         height,
-        x: (monitor.x + monitor_width - width as f64 - offset) as i64,
-        y: (monitor.y + monitor_height - height as f64 - offset) as i64,
-    }
+        x: x as i64,
+        y: y as i64,
+    })
 }
 
 /// Task 5 supplies live Hyprland lookups and daemon execution.
@@ -358,7 +389,8 @@ mod tests {
                 height: 2160.0,
                 scale: 2.0,
             },
-        );
+        )
+        .expect("valid geometry");
         assert_eq!(
             geometry,
             PipGeometry {
@@ -384,8 +416,131 @@ mod tests {
                 height: 800.0,
                 scale: 1.0,
             },
-        );
+        )
+        .expect("valid geometry");
         assert_eq!((geometry.width, geometry.height), (200, 200));
         assert_eq!((geometry.x, geometry.y), (776, 576));
+    }
+
+    #[test]
+    fn pip_geometry_rejects_zero_scale_and_dimensions() {
+        let window = WindowSize {
+            width: 1920.0,
+            height: 1080.0,
+        };
+        let monitor = MonitorGeometry {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+            scale: 1.0,
+        };
+
+        assert_eq!(
+            pip_geometry(
+                window,
+                MonitorGeometry {
+                    scale: 0.0,
+                    ..monitor
+                }
+            ),
+            None
+        );
+        assert_eq!(
+            pip_geometry(
+                WindowSize {
+                    height: 0.0,
+                    ..window
+                },
+                monitor
+            ),
+            None
+        );
+        assert_eq!(
+            pip_geometry(
+                WindowSize {
+                    width: 0.0,
+                    ..window
+                },
+                monitor
+            ),
+            None
+        );
+        assert_eq!(
+            pip_geometry(
+                window,
+                MonitorGeometry {
+                    width: 0.0,
+                    ..monitor
+                }
+            ),
+            None
+        );
+        assert_eq!(
+            pip_geometry(
+                window,
+                MonitorGeometry {
+                    height: 0.0,
+                    ..monitor
+                }
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn pip_geometry_rejects_non_finite_inputs() {
+        let window = WindowSize {
+            width: 1920.0,
+            height: 1080.0,
+        };
+        let monitor = MonitorGeometry {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+            scale: 1.0,
+        };
+
+        assert_eq!(
+            pip_geometry(
+                WindowSize {
+                    width: f64::NAN,
+                    ..window
+                },
+                monitor
+            ),
+            None
+        );
+        assert_eq!(
+            pip_geometry(
+                window,
+                MonitorGeometry {
+                    scale: f64::INFINITY,
+                    ..monitor
+                }
+            ),
+            None
+        );
+        assert_eq!(
+            pip_geometry(
+                window,
+                MonitorGeometry {
+                    x: f64::NEG_INFINITY,
+                    ..monitor
+                }
+            ),
+            None
+        );
+        assert_eq!(
+            pip_geometry(
+                window,
+                MonitorGeometry {
+                    y: f64::NAN,
+                    ..monitor
+                }
+            ),
+            None
+        );
     }
 }
