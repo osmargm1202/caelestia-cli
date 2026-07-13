@@ -2,6 +2,7 @@ pub mod clipboard;
 pub mod emoji;
 pub mod golden;
 pub mod record;
+pub mod resizer;
 pub mod scheme;
 pub mod screenshot;
 pub mod search;

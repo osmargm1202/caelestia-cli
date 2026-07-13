@@ -61,6 +61,7 @@ const NATIVE: &[&str] = &[
     "emoji",
     "scheme",
     "wallpaper",
+    "resizer",
     "golden",
 ];
 
@@ -95,6 +96,7 @@ fn main() {
         cli::Native::Emoji(a) => subcommands::emoji::run(a),
         cli::Native::Scheme(a) => subcommands::scheme::run(a),
         cli::Native::Wallpaper(a) => subcommands::wallpaper::run(a),
+        cli::Native::Resizer(a) => subcommands::resizer::run(a),
         cli::Native::Golden(a) => subcommands::golden::run(a),
     };
 
@@ -152,8 +154,9 @@ mod tests {
             assert!(is_native(sub), "{sub} must be native in phase 2");
         }
         assert!(is_native("wallpaper"));
-        for sub in ["resizer", "install", "update"] {
-            assert!(!is_native(sub), "{sub} must still delegate in phase 2");
+        assert!(is_native("resizer"));
+        for sub in ["install", "update"] {
+            assert!(!is_native(sub), "{sub} must still delegate in this phase");
         }
     }
 

@@ -1,4 +1,4 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(
@@ -31,8 +31,37 @@ pub enum Native {
     Scheme(SchemeActionArgs),
     /// inspect or change the wallpaper
     Wallpaper(WallpaperArgs),
+    /// resize matching windows or run the resizer daemon
+    Resizer(ResizerArgs),
     /// generate a colour scheme JSON from an image (used by golden parity tests)
     Golden(GoldenArgs),
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+#[value(rename_all = "camelCase")]
+pub enum MatchTypeArg {
+    TitleContains,
+    TitleExact,
+    TitleRegex,
+    InitialTitle,
+}
+
+#[derive(Args)]
+pub struct ResizerArgs {
+    /// start the resizer daemon
+    #[arg(short, long)]
+    pub daemon: bool,
+    /// window pattern, `active`, or `pip`
+    pub pattern: Option<String>,
+    /// type of title matching
+    #[arg(value_enum)]
+    pub match_type: Option<MatchTypeArg>,
+    /// target width
+    pub width: Option<String>,
+    /// target height
+    pub height: Option<String>,
+    /// comma-separated actions
+    pub actions: Option<String>,
 }
 
 #[derive(Args)]
@@ -152,6 +181,35 @@ mod tests {
     #[test]
     fn ambiguous_long_flag_prefix_errors() {
         assert!(Cli::try_parse_from(["caelestia", "shell", "--l"]).is_err());
+    }
+
+    #[test]
+    fn resizer_python_compatible_forms_parse() {
+        let cli = Cli::try_parse_from(["caelestia", "resizer", "--daemon"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Native::Resizer(ResizerArgs { daemon: true, .. })
+        ));
+
+        let cli = Cli::try_parse_from(["caelestia", "resizer", "pip"]).unwrap();
+        assert!(
+            matches!(cli.command, Native::Resizer(ResizerArgs { pattern: Some(pattern), .. }) if pattern == "pip")
+        );
+
+        let cli = Cli::try_parse_from([
+            "caelestia",
+            "resizer",
+            "active",
+            "titleExact",
+            "800",
+            "600",
+            "float,center",
+        ])
+        .unwrap();
+        assert!(matches!(cli.command, Native::Resizer(ResizerArgs {
+            pattern: Some(pattern), match_type: Some(MatchTypeArg::TitleExact),
+            width: Some(width), height: Some(height), actions: Some(actions), ..
+        }) if pattern == "active" && width == "800" && height == "600" && actions == "float,center"));
     }
 
     #[test]
