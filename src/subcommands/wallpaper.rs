@@ -198,7 +198,9 @@ fn generate_thumbnail(source: &Path, thumbnail: &Path) -> Result<()> {
     }
     let image = image::open(source)
         .with_context(|| format!("opening wallpaper image {}", source.display()))?;
-    let resized = image.thumbnail(128, 128).to_rgb8();
+    let resized = image
+        .resize(128, 128, image::imageops::FilterType::Nearest)
+        .to_rgb8();
     if let Some(parent) = thumbnail.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -244,16 +246,44 @@ fn wallpaper_json(wall: &Path, no_smart: bool) -> Result<String> {
 }
 
 fn replace_symlink(target: &Path, link: &Path) -> Result<()> {
-    if let Some(parent) = link.parent() {
-        std::fs::create_dir_all(parent)?;
+    let parent = link.parent().unwrap_or_else(|| Path::new("."));
+    std::fs::create_dir_all(parent)?;
+    let file_name = link
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("symlink path has no file name: {}", link.display()))?;
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let temporary = (0_u32..)
+        .find_map(|attempt| {
+            let mut temporary_name = file_name.to_os_string();
+            temporary_name.push(format!(".tmp-{}-{nonce}-{attempt}", std::process::id()));
+            let temporary = parent.join(temporary_name);
+            match std::os::unix::fs::symlink(target, &temporary) {
+                Ok(()) => Some(Ok(temporary)),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => None,
+                Err(error) => Some(Err(error)),
+            }
+        })
+        .transpose()
+        .with_context(|| format!("creating temporary symlink for {}", link.display()))?
+        .expect("unbounded temporary symlink attempts cannot be exhausted");
+
+    if let Err(error) = std::fs::rename(&temporary, link) {
+        let cleanup = std::fs::remove_file(&temporary);
+        return match cleanup {
+            Ok(()) => Err(error).with_context(|| {
+                format!("renaming temporary symlink to {}", link.display())
+            }),
+            Err(cleanup_error) => Err(anyhow::anyhow!(
+                "renaming temporary symlink to {} failed: {error}; cleanup of {} failed: {cleanup_error}",
+                link.display(),
+                temporary.display()
+            )),
+        };
     }
-    match std::fs::symlink_metadata(link) {
-        Ok(_) => std::fs::remove_file(link)?,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
-    }
-    std::os::unix::fs::symlink(target, link)
-        .with_context(|| format!("linking {} to {}", link.display(), target.display()))
+    Ok(())
 }
 
 fn write_current_wallpaper(wall: &Path) -> Result<()> {
@@ -366,6 +396,62 @@ mod tests {
         image::RgbImage::from_pixel(width, height, image::Rgb([30, 60, 90]))
             .save(path)
             .unwrap();
+    }
+
+    #[test]
+    fn thumbnail_uses_nearest_neighbor_resampling() {
+        let root = temp_dir("nearest-thumbnail");
+        let source = root.join("source.png");
+        let actual = root.join("actual.jpg");
+        let expected = root.join("expected.jpg");
+        let source_image = image::RgbImage::from_fn(257, 129, |x, y| {
+            image::Rgb([
+                (x.wrapping_mul(37) % 256) as u8,
+                (y.wrapping_mul(73) % 256) as u8,
+                (x.wrapping_mul(11).wrapping_add(y.wrapping_mul(19)) % 256) as u8,
+            ])
+        });
+        source_image.save(&source).unwrap();
+        image::DynamicImage::ImageRgb8(source_image)
+            .resize(128, 128, image::imageops::FilterType::Nearest)
+            .save_with_format(&expected, image::ImageFormat::Jpeg)
+            .unwrap();
+
+        generate_thumbnail(&source, &actual).unwrap();
+
+        assert_eq!(
+            std::fs::read(actual).unwrap(),
+            std::fs::read(expected).unwrap()
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn symlink_replacement_replaces_existing_regular_file() {
+        let root = temp_dir("replace-regular-file");
+        let target = root.join("target");
+        let link = root.join("wallpaper");
+        std::fs::write(&target, "target").unwrap();
+        std::fs::write(&link, "existing").unwrap();
+
+        replace_symlink(&target, &link).unwrap();
+
+        assert_eq!(std::fs::read_link(&link).unwrap(), target);
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 2);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failed_symlink_replacement_preserves_existing_regular_file() {
+        let root = temp_dir("atomic-symlink");
+        let link = root.join("wallpaper");
+        std::fs::write(&link, "existing").unwrap();
+        let invalid_target = PathBuf::from("x".repeat(5000));
+
+        assert!(replace_symlink(&invalid_target, &link).is_err());
+        assert_eq!(std::fs::read_to_string(&link).unwrap(), "existing");
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 1);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
