@@ -173,6 +173,7 @@ Implement `print_wallpaper_colours`, `set_wallpaper`, and `set_random`:
 - generate/reuse 128×128 JPEG thumbnail;
 - load scheme, apply smart mode/variant only for `dynamic` unless `--no-smart`;
 - obtain palette from `get_colours_for_image` and persist scheme state;
+- retain current scheme mode/variant in this task; Task 3 exclusively adds smart mode/variant selection and post-hook behavior;
 - invoke the existing native scheme/theme application mechanism; extract it from `scheme.rs` if necessary rather than duplicating output logic.
 
 Match JSON output for `--print`: `name`, `flavour`, `mode`, `variant`, `colours`.
