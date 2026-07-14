@@ -71,8 +71,8 @@ fn cache_path(source: &Path, cache_root: &Path) -> PathBuf {
     cache_root.join(crate::util::paths::compute_hash(source))
 }
 
-fn thumbnail_path(source: &Path, cache_root: &Path) -> PathBuf {
-    cache_path(source, cache_root).join("thumbnail.jpg")
+fn thumbnail_path(cache: &Path) -> PathBuf {
+    cache.join("thumbnail.jpg")
 }
 
 fn ffmpeg_command(source: &Path, output: &Path) -> Command {
@@ -457,7 +457,7 @@ fn set_wallpaper(wall: &Path, no_smart: bool) -> Result<()> {
     let cache_root = crate::util::paths::wallpapers_cache_dir();
     let conversion_cache = cache_path(&canonical, &cache_root);
     let palette_source = source_for_palette(&canonical, &conversion_cache)?;
-    let thumbnail = thumbnail_path(&palette_source, &cache_root);
+    let thumbnail = thumbnail_path(&conversion_cache);
     generate_thumbnail(&palette_source, &thumbnail)?;
 
     write_current_wallpaper(&canonical)?;
@@ -763,9 +763,20 @@ mod tests {
             cache,
             cache_root.join(crate::util::paths::compute_hash(source))
         );
+        assert_eq!(thumbnail_path(&cache), cache.join("thumbnail.jpg"));
+    }
+
+    #[test]
+    fn converted_source_and_wallpaper_use_same_thumbnail_cache() {
+        let source = Path::new("/tmp/video.mkv");
+        let cache_root = Path::new("/cache/wallpapers");
+        let wallpaper_cache = cache_path(source, cache_root);
+        let converted_cache_key = cache_path(&wallpaper_cache.join("first_frame.png"), cache_root);
+
+        assert_ne!(wallpaper_cache, converted_cache_key);
         assert_eq!(
-            thumbnail_path(source, cache_root),
-            cache.join("thumbnail.jpg")
+            thumbnail_path(&wallpaper_cache),
+            wallpaper_cache.join("thumbnail.jpg")
         );
     }
 
